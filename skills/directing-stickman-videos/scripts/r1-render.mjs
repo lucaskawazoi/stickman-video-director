@@ -10,10 +10,13 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 import {createCanvas, GlobalFonts, Path2D} from '@napi-rs/canvas';
 import {drawCharacter, drawBaby, bodyMetrics, POSES, EXPR, INK} from './r1-rig.mjs';
 import {SETS, PROPS} from './r1-world.mjs';
+import './r1-world-grace.mjs'; // grace-remains sets/props register themselves
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 GlobalFonts.registerFromPath(path.join(ROOT, 'assets/r1/fonts/Anton-Regular.ttf'), 'R1Caption');
 GlobalFonts.registerFromPath(path.join(ROOT, 'assets/r1/fonts/ShareTechMono-Regular.ttf'), 'R1Digits');
+GlobalFonts.registerFromPath(path.join(ROOT, 'assets/grace/fonts/BebasNeue-Regular.ttf'), 'GraceCaption');
+GlobalFonts.registerFromPath(path.join(ROOT, 'assets/grace/fonts/Lora-Italic.ttf'), 'GraceVerse');
 
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const ease = x => { x = clamp(x); return x * x * (3 - 2 * x); };
@@ -110,16 +113,29 @@ export function painter(tl) {
     const x = keyAt(a.keys, t, 'x', a.x), y = keyAt(a.keys, t, 'y', a.y), s = keyAt(a.keys, t, 's', a.s || 7);
     const L = a.ledger !== false ? tl.ledgers[a.ledger || a.id] : null;
     const led = L ? ledgerAt(L, t) : null;
-    const sat = a.sat ?? (led ? satFor(led.v) : 1);
+    const sat = a.sat ?? (led && tl.counter?.sat !== false ? satFor(led.v) : 1);
     const walkSeg = (a.walk || []).find(([t0, t1]) => t >= t0 && t < t1);
     const walk = walkSeg ? (t - walkSeg[0]) * (walkSeg[2] || 9) : null;
     const st = {
       pose: poseAt(a, t), expr: stepAt(a.expr, t, a.exprDefault || 'neutral'), talk: talkAt(a, t), blink: blinkAt(a, t),
-      gaze: stepAt(a.gaze, t, [0, 0]), tilt: stepAt(a.tilt, t, 0) + Math.sin(t * 1.1 + hash(a.id) * 9) * 1.2 + (a.sway ? Math.sin(t * a.sway[0]) * a.sway[1] : 0),
+      gaze: stepAt(a.gaze, t, tl.counter?.pack && led?.v >= 25 && a.bend !== 0 ? [0, 0.7] : [0, 0]), tilt: stepAt(a.tilt, t, 0) + Math.sin(t * 1.1 + hash(a.id) * 9) * 1.2 + (a.sway ? Math.sin(t * a.sway[0]) * a.sway[1] : 0),
+      marks: tl.counter?.hands && led && a.marks !== false ? led.v : 0, gloves: stepAt(a.gloves, t, false), gloveColor: a.gloveColor,
       walk, bob: walk != null ? -Math.abs(Math.sin(walk)) * 1.4 : a.hop ? -Math.abs(Math.sin(t * a.hop)) * 3 : Math.sin(t * 2.4 + hash(a.id) * 9) * 0.35,
     };
     const alpha = keyAt(a.keys, t, 'alpha', a.alpha ?? 1); if (alpha <= 0.001) { a._xy = null; return; }
     w.save(); w.globalAlpha = alpha; w.translate(x, y); w.scale(s * (a.flip ? -1 : 1), s);
+    // a sack of the rule's stones on the back (tl.counter.pack): grows with the count; the carrier stoops
+    const packV = tl.counter?.pack && led && a.pack !== false && spec.kind !== 'baby' ? Math.max(0, led.v) : 0;
+    const bend = a.bend ?? Math.min(1, packV / 40);
+    if (bend > 0.01) w.scale(1, 1 - 0.1 * bend);
+    if (packV > 0) {
+      const M = bodyMetrics(spec), r = 6 + 2.7 * Math.sqrt(packV), cy = M.neckY + 6 - r * 0.55;
+      const sack = new Path2D(); sack.ellipse(0, cy, r * 1.05, r, 0, 0, Math.PI * 2);
+      w.fillStyle = '#9a7b55'; w.fill(sack); w.lineWidth = 0.8; w.strokeStyle = INK; w.stroke(sack);
+      const n = Math.min(14, Math.ceil(packV / 3));
+      for (let i = 0; i < n; i++) { const q = i * 2.39996, rr = r * 0.62 * Math.sqrt((i + 0.5) / n), st = new Path2D(); st.ellipse(Math.cos(q) * rr * 1.05, cy - Math.abs(Math.sin(q)) * rr * 0.9 - r * 0.15, 2.4, 1.9, q, 0, Math.PI * 2); w.fillStyle = '#8c8f96'; w.fill(st); w.lineWidth = 0.5; w.stroke(st); }
+      w.strokeStyle = '#6e4426'; w.lineWidth = 1.6; w.beginPath(); w.moveTo(-M.shoulderW * 0.3, M.neckY + 2); w.quadraticCurveTo(-M.shoulderW * 0.42, cy - r * 0.2, -r * 0.7, cy); w.moveTo(M.shoulderW * 0.3, M.neckY + 2); w.quadraticCurveTo(M.shoulderW * 0.42, cy - r * 0.2, r * 0.7, cy); w.stroke();
+    }
     if (sat < 0.995) w.filter = `saturate(${sat.toFixed(3)}) brightness(${(0.9 + 0.1 * sat).toFixed(3)})`;
     let top;
     if (spec.kind === 'baby') { top = drawBaby(w, spec, st).headTop; }
@@ -156,6 +172,7 @@ export function painter(tl) {
       if (right || left) { cx = hx + (right ? r + 24 + hw : -(r + 24 + hw)); cy = Math.max(SAFE_TOP + hh, hc - r * 0.2); }
       else { cx = hx; cy = hc + r * 1.25 + hh; } // under the chin
     }
+    if (a.counterAt) [cx, cy] = a.counterAt; // close-ups: a fixed screen spot so the plate never covers the hands
     cx = clamp(cx, SAFE_X + hw, W - SAFE_X - hw); cy = clamp(cy, SAFE_TOP + hh, H - 120 - hh);
     for (let pass = 0; pass < 3; pass++) for (const q of placed) {
       if (Math.abs(q[0] - cx) < q[2] + hw + 8 && Math.abs(q[1] - cy) < q[3] + hh + 8) {
@@ -168,13 +185,17 @@ export function painter(tl) {
     o.save(); o.globalAlpha = a._alpha ?? 1; o.translate(cx, cy); o.scale(cs * pop, cs * pop);
     const plate = new Path2D(); plate.roundRect(-pw / 2, -ph / 2, pw, ph, 18);
     o.fillStyle = 'rgba(0,0,0,.25)'; o.translate(0, 6); o.fill(plate); o.translate(0, -6);
-    o.fillStyle = '#1b1d24'; o.fill(plate); o.lineWidth = 5; o.strokeStyle = INK; o.stroke(plate);
-    o.save(); o.clip(plate);
-    const rb = ['#e84a5f', '#ff8c2f', '#f5c518', '#3db37a', '#3f7fd6', '#8e5bd6'], sat = clamp(v / 100);
-    rb.forEach((c, i) => { o.fillStyle = c; o.globalAlpha = 0.2 + 0.8 * sat; o.fillRect(-pw / 2 + i * 7, -ph / 2, 7, ph); });
-    o.globalAlpha = 1; o.restore();
-    o.fillStyle = '#9aa3b2'; o.font = '22px R1Caption'; o.textBaseline = 'middle'; o.fillText('CORES', -pw / 2 + 52, 0);
-    const col = v < 0 ? '#ff2e4d' : v < 20 ? '#ff4d4d' : v < 50 ? '#ffd23f' : '#47f08a';
+    const C = tl.counter || {};
+    o.fillStyle = C.plate || '#1b1d24'; o.fill(plate); o.lineWidth = 5; o.strokeStyle = INK; o.stroke(plate);
+    if (C.border) { o.lineWidth = 3; o.strokeStyle = C.border; const inner = new Path2D(); inner.roundRect(-pw / 2 + 6, -ph / 2 + 6, pw - 12, ph - 12, 13); o.stroke(inner); }
+    if (!C.label) {
+      o.save(); o.clip(plate);
+      const rb = ['#e84a5f', '#ff8c2f', '#f5c518', '#3db37a', '#3f7fd6', '#8e5bd6'], sat = clamp(v / 100);
+      rb.forEach((c, i) => { o.fillStyle = c; o.globalAlpha = 0.2 + 0.8 * sat; o.fillRect(-pw / 2 + i * 7, -ph / 2, 7, ph); });
+      o.globalAlpha = 1; o.restore();
+    }
+    o.fillStyle = C.labelColor || '#9aa3b2'; o.font = C.label ? `30px ${C.font || 'GraceCaption'}` : '22px R1Caption'; o.textBaseline = 'middle'; o.fillText(C.label || 'CORES', -pw / 2 + (C.label ? 26 : 52), 1);
+    const col = C.color ? C.color(v) : v < 0 ? '#ff2e4d' : v < 20 ? '#ff4d4d' : v < 50 ? '#ffd23f' : '#47f08a';
     o.font = '64px R1Digits'; o.textAlign = 'right';
     if (a.glitch && t >= a.glitch[0] && t < a.glitch[1]) {
       const j = Math.sin(t * 90) * 7; o.globalAlpha = 0.75; o.fillStyle = '#33ffff'; o.fillText(String(v), pw / 2 - 18 + j, 2); o.fillStyle = '#ff33ff'; o.fillText(String(v), pw / 2 - 18 - j, 2); o.globalAlpha = 1;
@@ -184,8 +205,9 @@ export function painter(tl) {
     const q = (t - changeT) / 0.95;
     if (delta && q >= 0 && q < 1 && !a.noDelta) {
       o.save(); o.globalAlpha = 1 - q * q; o.translate(cx + hw * 0.55, Math.max(SAFE_TOP - 20, cy - hh - 18 * cs - q * 70 * cs)); o.scale(cs, cs);
-      o.font = '60px R1Caption'; o.textAlign = 'center'; o.lineWidth = 10; o.strokeStyle = INK; o.lineJoin = 'round';
-      const txt = (delta > 0 ? '+' : '') + delta; o.strokeText(txt, 0, 0); o.fillStyle = delta > 0 ? '#ffd23f' : '#ff4d4d'; o.fillText(txt, 0, 0);
+      o.font = `60px ${tl.captionFont || 'R1Caption'}`; o.textAlign = 'center'; o.lineWidth = 10; o.strokeStyle = INK; o.lineJoin = 'round';
+      const txt = (delta > 0 ? '+' : '') + delta, good = (tl.counter?.bad === 'up') ? delta < 0 : delta > 0;
+      o.strokeText(txt, 0, 0); o.fillStyle = good ? (tl.counter?.goodColor || '#ffd23f') : (tl.counter?.badColor || '#ff4d4d'); o.fillText(txt, 0, 0);
       o.restore();
     }
   }
@@ -194,7 +216,7 @@ export function painter(tl) {
     const a = actors.find(x => x.id === b.actor); if (!a || !a._head) return;
     const k = easeOut((t - b.t0) / 0.16);
     const size = b.size || 50;
-    o.font = `${size}px R1Caption`;
+    o.font = `${size}px ${tl.captionFont || 'R1Caption'}`;
     const lines = b.text.split('\n'), tw = Math.max(...lines.map(l => o.measureText(l).width)), lh = size * 1.12;
     const bw = tw + 60, bh = lines.length * lh + 34;
     const [mx, my] = toScreen(cam, [a._head[0], a._head[1] + (a._headR || 15) * a._s * 0.45]);
@@ -250,10 +272,11 @@ export function painter(tl) {
     }
   }
   function captions(t) {
+    if ((tl.captionsOff || []).some(([a, b]) => t >= a && t < b)) return;
     const G = tl.captionGroups; const g = G.find(g => t >= g.start && t < g.end); if (!g) return;
     const shown = g.words.filter(x => t >= x.s - 0.02);
     if (!shown.length) return;
-    o.font = '112px R1Caption'; o.textBaseline = 'alphabetic';
+    o.font = `${tl.captionSize || 112}px ${tl.captionFont || 'R1Caption'}`; o.textBaseline = 'alphabetic';
     const space = 26, widths = shown.map(x => o.measureText(x.text).width), total = widths.reduce((a, b) => a + b, 0) + space * (shown.length - 1);
     const sc = Math.min(1, 1000 / total); o.save(); o.translate(W / 2, tl.captionY || 268); o.scale(sc, sc);
     let x = -total / 2;
@@ -273,9 +296,14 @@ export function painter(tl) {
       if (t < ti.t0 || t >= ti.t1) continue;
       const k = easeOut((t - ti.t0) / 0.2);
       o.save(); o.translate(ti.x ?? W / 2, ti.y ?? 1500); o.scale(lerp(1.4, 1, k), lerp(1.4, 1, k)); o.globalAlpha = k;
-      o.font = `${ti.size || 92}px R1Caption`; o.textAlign = 'center'; o.lineJoin = 'round';
-      o.lineWidth = ti.stroke || 14; o.strokeStyle = '#141414'; o.strokeText(ti.text, 0, 0); o.fillStyle = ti.color || '#ffd23f'; o.fillText(ti.text, 0, 0);
-      o.restore();
+      const size = ti.size || 92, lines = ti.text.split('\n'), lh = size * (ti.lh || 1.18);
+      o.font = `${size}px ${ti.font || tl.captionFont || 'R1Caption'}`; o.textAlign = 'center'; o.lineJoin = 'round'; o.textBaseline = 'middle';
+      if (ti.card) { const tw = Math.max(...lines.map(l => o.measureText(l).width)) + 110, th = lines.length * lh + 90, c = new Path2D(); c.roundRect(-tw / 2, -th / 2, tw, th, 28);
+        o.fillStyle = 'rgba(60,30,10,.25)'; o.translate(0, 10); o.fill(c); o.translate(0, -10); o.fillStyle = ti.card; o.fill(c); o.lineWidth = 6; o.strokeStyle = '#2a211e'; o.stroke(c); }
+      lines.forEach((l, i) => { const y = (i - (lines.length - 1) / 2) * lh;
+        if (ti.stroke !== 0) { o.lineWidth = ti.stroke || 14; o.strokeStyle = '#141414'; o.strokeText(l, 0, y); }
+        o.fillStyle = ti.color || '#ffd23f'; o.fillText(l, 0, y); });
+      o.textBaseline = 'alphabetic'; o.restore();
     }
   }
   return function frame(t) {
@@ -310,6 +338,8 @@ export function painter(tl) {
     o.filter = 'none';
     if (shot.vignette) { const g = o.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.75); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(20,10,0,${shot.vignette})`); o.fillStyle = g; o.fillRect(0, 0, W, H); }
     if (shot.tint) { o.fillStyle = shot.tint; o.fillRect(0, 0, W, H); }
+    if (tl.look?.tint) { o.fillStyle = tl.look.tint; o.fillRect(0, 0, W, H); }
+    if (tl.look?.vignette) { const g = o.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.8); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(60,25,5,${tl.look.vignette})`); o.fillStyle = g; o.fillRect(0, 0, W, H); }
     if (shot.flash) { const q = (t - shot.flash) / 0.25; if (q >= 0 && q < 1) { o.fillStyle = `rgba(255,255,255,${(1 - q) * 0.85})`; o.fillRect(0, 0, W, H); } }
     const placed = [];
     const hidden = (shot.hideCounters || []).some(([a, b]) => t >= a && t < b);

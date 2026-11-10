@@ -2,6 +2,7 @@
 // Units: adult ≈ 100u tall, origin at the feet, y grows downward (negative = up). The renderer scales u→px.
 import {Path2D as P2D} from '@napi-rs/canvas';
 export const INK = '#2a211e';
+const MARK = '#1c1411'; // the ink a lie leaves on a hand (grace-remains rule)
 const LW = 0.8; // outline in units
 
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -166,7 +167,29 @@ export function drawCharacter(ctx, spec, st = {}) {
     const k = spec.longSleeves ? 1 : 0.6, M = [S[0] + (E[0] - S[0]) * k, S[1] + (E[1] - S[1]) * k];
     segment(ctx, S, M, P.armW + 2.2, sleeve);
     if (spec.longSleeves) segment(ctx, E, [E[0] + (W[0] - E[0]) * 0.75, E[1] + (W[1] - E[1]) * 0.75], P.armW + 1.6, sleeve);
-    fillStroke(ctx, circle(W[0], W[1], P.armW * 0.82), spec.skin);
+    const hr = P.armW * 0.82;
+    if (st.gloves) { // gloves hide the marks: a mitten with a cuff
+      segment(ctx, [E[0] + (W[0] - E[0]) * 0.72, E[1] + (W[1] - E[1]) * 0.72], [E[0] + (W[0] - E[0]) * 0.86, E[1] + (W[1] - E[1]) * 0.86], P.armW + 2.4, dark(st.gloveColor || '#7a4a2a', 0.18));
+      fillStroke(ctx, circle(W[0], W[1], hr * 1.18), st.gloveColor || '#7a4a2a');
+    } else {
+      const m = Math.max(0, st.marks || 0);
+      if (m >= 20) { // a lifetime of marks: the stain climbs the forearm
+        const k = Math.min(1, (m - 20) / 40), F = [W[0] + (E[0] - W[0]) * 0.75 * k, W[1] + (E[1] - W[1]) * 0.75 * k];
+        if (k > 0.05) segment(ctx, W, F, P.armW * 0.92, MARK);
+      }
+      fillStroke(ctx, circle(W[0], W[1], hr), m >= 20 ? MARK : spec.skin);
+      if (m > 0 && m < 20) { // ink blots: the right hand takes the odd marks, the left the even ones
+        const right = W[0] > 0, n = Math.min(10, right ? Math.ceil(m / 2) : Math.floor(m / 2));
+        ctx.save(); ctx.clip(circle(W[0], W[1], hr * 1.02)); ctx.fillStyle = MARK;
+        for (let i = 0; i < n; i++) {
+          const a = i * 2.39996 + (right ? 0.6 : 2.1), r = n === 1 ? 0 : hr * 0.55 * Math.sqrt((i + 0.6) / n), br = hr * (n === 1 ? 0.62 : Math.max(0.3, 0.55 - n * 0.03));
+          const cx = W[0] + Math.cos(a) * r, cy = W[1] + Math.sin(a) * r, p = new P2D();
+          for (let k = 0; k < 9; k++) { const q = k / 9 * Math.PI * 2, rr2 = br * (0.78 + 0.32 * Math.abs(Math.sin(k * 2.7 + i * 1.3))); k ? p.lineTo(cx + Math.cos(q) * rr2, cy + Math.sin(q) * rr2) : p.moveTo(cx + Math.cos(q) * rr2, cy + Math.sin(q) * rr2); }
+          p.closePath(); ctx.fill(p);
+        }
+        ctx.restore();
+      }
+    }
   };
   if (!st.armsFront) arms.forEach(drawArm);
   // head
@@ -180,7 +203,7 @@ export function drawCharacter(ctx, spec, st = {}) {
 export function bodyMetrics(spec) {
   const P = PLANS[spec.plan || 'adult'];
   const neckY = -(P.leg + P.torso), headY = neckY - P.neck - P.head * 0.92;
-  return {headY, top: headY - P.head * 1.2, head: P.head};
+  return {headY, top: headY - P.head * 1.2, head: P.head, neckY, shoulderW: P.sw, hipY: -P.leg};
 }
 
 function drawHead(ctx, spec, R, st) {
