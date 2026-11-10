@@ -1,6 +1,6 @@
 // R1 · rule-world 2D: flat-vector sets and props on a 1080×1920 world plane (thick ink outline, flat fills).
 import {Path2D} from '@napi-rs/canvas';
-import {INK, mix, dark, light} from './r1-rig.mjs';
+import {INK, mix, dark, light, drawBaby} from './r1-rig.mjs';
 
 const OL = 5; // outline px
 function fs(ctx, path, fill, w = OL) {
@@ -88,7 +88,7 @@ export const SETS = {
       if (time === 'sunset') { ctx.fillStyle = 'rgba(255,150,80,.12)'; ctx.fillRect(0, 0, 1080, 1920); }
     };
   },
-  door({sat = 1, alive = 0, time = 'day', porch = false} = {}) {
+  door({sat = 1, alive = 0, time = 'day', porch = false, dim = 0.55} = {}) {
     return ctx => {
       const wall = grey('#e8925a', sat);
       ctx.fillStyle = wall; ctx.fillRect(0, 0, 1080, 1920);
@@ -117,7 +117,7 @@ export const SETS = {
       ground(ctx, 1360, '#d9cdb6', 1, false);
       fs(ctx, rr(400, 1366, 280, 50, 10), grey('#8b3f3f', sat), 4);
       if (time === 'night') {
-        ctx.fillStyle = 'rgba(15,20,55,.55)'; ctx.fillRect(0, 0, 1080, 1920);
+        ctx.fillStyle = `rgba(15,20,55,${dim})`; ctx.fillRect(0, 0, 1080, 1920);
         if (porch) { const g = ctx.createRadialGradient(540, 560, 10, 540, 860, 560); g.addColorStop(0, 'rgba(255,214,120,.6)'); g.addColorStop(1, 'rgba(255,214,120,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920); fs(ctx, el(540, 540, 30, 22), '#ffe9a6', 4); }
       }
       if (time === 'dawn') { ctx.fillStyle = 'rgba(255,170,110,.14)'; ctx.fillRect(0, 0, 1080, 1920); }
@@ -168,7 +168,7 @@ export const SETS = {
       ctx.fillStyle = 'rgba(0,0,0,.08)'; for (let x = 0; x < 1080; x += 120) for (let y = 1320; y < 1920; y += 120) if (((x + y - 1320) / 120) % 2 === 0) ctx.fillRect(x, y, 120, 120);
     };
   },
-  park({sat = 1} = {}) {
+  park({sat = 1, time = 'day'} = {}) {
     return ctx => {
       const g = ctx.createLinearGradient(0, 0, 0, 1200); g.addColorStop(0, grey('#9fd3f0', sat)); g.addColorStop(1, grey('#d8f0f8', sat)); ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920);
       cloud(ctx, 600, 230, 1.0); cloud(ctx, 60, 380, 0.8);
@@ -177,11 +177,17 @@ export const SETS = {
       ground(ctx, 1260, '#8fcf6b', sat, false);
       const path = new Path2D(); path.moveTo(380, 1260); path.lineTo(700, 1260); path.lineTo(900, 1920); path.lineTo(180, 1920); path.closePath(); fs(ctx, path, grey('#eadbb8', sat), 4);
       fs(ctx, rr(700, 1180, 300, 26, 6), grey('#b06b3c', sat), 4); fs(ctx, rr(720, 1206, 18, 70, 4), '#555555'); fs(ctx, rr(960, 1206, 18, 70, 4), '#555555');
+      if (time === 'night') {
+        ctx.fillStyle = 'rgba(18,22,58,.62)'; ctx.fillRect(0, 0, 1080, 1920);
+        ctx.fillStyle = '#fff6c9'; ctx.fill(el(860, 220, 55, 55)); ctx.fillStyle = '#ffffff'; for (const [x, y] of [[120, 160], [330, 300], [560, 120], [980, 480]]) ctx.fill(el(x, y, 4, 4));
+        fs(ctx, rr(520, 760, 18, 520, 6), '#3a3f4a'); fs(ctx, el(529, 750, 40, 26), '#ffe9a6', 4);
+        const g = ctx.createRadialGradient(529, 900, 20, 529, 1500, 620); g.addColorStop(0, 'rgba(255,220,140,.42)'); g.addColorStop(1, 'rgba(255,220,140,0)'); ctx.fillStyle = g; ctx.fillRect(0, 600, 1080, 1320);
+      }
     };
   },
-  busStop({sat = 1} = {}) {
+  busStop({sat = 1, time = 'day'} = {}) {
     return ctx => {
-      SETS.street({sat, bunt: false})(ctx);
+      SETS.street({sat, bunt: false, time, lit: time === 'night'})(ctx);
       fs(ctx, rr(860, 860, 16, 520, 6), '#5a6b7d'); fs(ctx, el(868, 830, 62, 62), '#3f7fd6', 5);
       ctx.fillStyle = '#fff'; ctx.font = 'bold 54px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('P', 868, 850); ctx.textAlign = 'left';
     };
@@ -259,5 +265,17 @@ export const PROPS = {
   calendar(ctx, {day = 1} = {}) { fs(ctx, rr(-70, -80, 140, 160, 10), '#ffffff'); fs(ctx, rr(-70, -80, 140, 44, 10), '#e8414b'); ctx.fillStyle = INK; ctx.font = 'bold 70px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(String(day), 0, 50); ctx.textAlign = 'left'; },
   cane(ctx) { ctx.strokeStyle = INK; ctx.lineWidth = 12; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 150); ctx.arc(-14, 0, 14, 0, Math.PI, true); ctx.stroke(); ctx.strokeStyle = '#8a5a36'; ctx.lineWidth = 6; ctx.stroke(); },
   heart(ctx) { const h = new Path2D(); h.moveTo(0, 18); h.bezierCurveTo(-30, -2, -18, -26, 0, -10); h.bezierCurveTo(18, -26, 30, -2, 0, 18); fs(ctx, h, '#ff4d6d', 3); },
+  photo(ctx, {baby = {kind: 'baby', skin: '#8a5a3c', blanket: '#f3d36b', hairColor: '#1f1512'}} = {}) { // framed photo of a grey newborn in a crib
+    ctx.save(); ctx.rotate(-0.04);
+    fs(ctx, rr(-160, -190, 320, 380, 10), '#c49a62', 8); fs(ctx, rr(-132, -162, 264, 324, 4), '#d9d6cf', 4);
+    ctx.save(); ctx.beginPath(); ctx.rect(-132, -162, 264, 324); ctx.clip();
+    ctx.fillStyle = '#9b9893'; ctx.fillRect(-132, 60, 264, 110);
+    ctx.save(); ctx.translate(0, 40); ctx.scale(5.2, 5.2); ctx.filter = 'saturate(0)'; drawBaby(ctx, baby, {expr: 'sad'}); ctx.filter = 'none'; ctx.restore();
+    for (let x = -120; x <= 120; x += 30) fs(ctx, rr(x - 4, 40, 8, 120, 3), '#bdb8ae', 3);
+    fs(ctx, rr(-132, 30, 264, 16, 4), '#a8a39a', 3);
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.moveTo(-132, -162); ctx.lineTo(-20, -162); ctx.lineTo(-132, 0); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  },
   note(ctx) { ctx.fillStyle = INK; ctx.beginPath(); ctx.ellipse(0, 0, 12, 9, -0.4, 0, 7); ctx.fill(); ctx.fillRect(9, -42, 5, 42); ctx.fillRect(9, -42, 22, 7); },
 };

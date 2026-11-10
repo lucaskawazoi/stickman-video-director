@@ -91,6 +91,7 @@ export function painter(tl) {
     const dt = t - shot.start, span = shot.end - shot.start, k = clamp(dt / span);
     const c0 = shot.cam?.from || {z: 1, x: 540, y: 960}, c1 = shot.cam?.to || c0;
     let z = lerp(c0.z, c1.z, k), x = lerp(c0.x, c1.x, k), y = lerp(c0.y, c1.y, k);
+    if (shot.cam?.keys) { z = keyAt(shot.cam.keys, t, 'z', 1); x = keyAt(shot.cam.keys, t, 'x', 540); y = keyAt(shot.cam.keys, t, 'y', 960); }
     const enter = shot.enter ?? 'pull', e = easeOut(dt / 0.3);
     if (enter === 'pull') z *= lerp(1.32, 1, e);
     if (enter === 'whipL') x += lerp(-320, 0, e) / z;
@@ -116,7 +117,8 @@ export function painter(tl) {
       gaze: stepAt(a.gaze, t, [0, 0]), tilt: stepAt(a.tilt, t, 0) + Math.sin(t * 1.1 + hash(a.id) * 9) * 1.2,
       walk, bob: walk != null ? -Math.abs(Math.sin(walk)) * 1.4 : Math.sin(t * 2.4 + hash(a.id) * 9) * 0.35,
     };
-    w.save(); w.translate(x, y); w.scale(s * (a.flip ? -1 : 1), s);
+    const alpha = keyAt(a.keys, t, 'alpha', a.alpha ?? 1); if (alpha <= 0.001) { a._xy = null; return; }
+    w.save(); w.globalAlpha = alpha; w.translate(x, y); w.scale(s * (a.flip ? -1 : 1), s);
     if (sat < 0.995) w.filter = `saturate(${sat.toFixed(3)}) brightness(${(0.9 + 0.1 * sat).toFixed(3)})`;
     let top;
     if (spec.kind === 'baby') { top = drawBaby(w, spec, st).headTop; }
@@ -126,7 +128,7 @@ export function painter(tl) {
       a._arms = r; // arms drawn later when armsFront (over a hug partner)
     }
     w.filter = 'none'; w.restore();
-    a._top = [x, y + top * s]; a._headR = spec.kind === 'baby' ? 11 : bodyMetrics(spec).head; a._head = [x, y + (spec.kind === 'baby' ? -4 : bodyMetrics(spec).headY) * s]; a._s = s; a._sat = sat; a._led = led; a._xy = [x, y]; a._st = st; a._spec = spec;
+    a._alpha = alpha; a._top = [x, y + top * s]; a._headR = spec.kind === 'baby' ? 11 : bodyMetrics(spec).head; a._head = [x, y + (spec.kind === 'baby' ? -4 : bodyMetrics(spec).headY) * s]; a._s = s; a._sat = sat; a._led = led; a._xy = [x, y]; a._st = st; a._spec = spec;
   }
   function drawFrontArms(a) {
     if (!a.armsFront || !a._arms) return;
@@ -145,6 +147,7 @@ export function painter(tl) {
     const cs = clamp((a.counterScale || 1) * Math.max(0.8, Math.min(1.25, a._s / 7)) * Math.sqrt(cam.z), 0.75, 1.6);
     const pw = 236, ph = 84, hw = pw / 2 * cs, hh = ph / 2 * cs;
     const [hx, hy] = toScreen(cam, a._top), [, hc] = toScreen(cam, a._head);
+    if (hx < -60 || hx > W + 60 || hc < -100 || hc > H + 60) return; // only characters in frame carry a counter
     let cx = hx + (a.counterDx || 0) * cam.z, cy = hy - (a.counterGap ?? 0) * cam.z - hh - 14;
     if (cy - hh < SAFE_TOP) { // no room above the head: sit beside it
       const r = (a._headR || 15) * a._s * cam.z;
@@ -155,7 +158,7 @@ export function painter(tl) {
     for (const r of placed) if (Math.abs(r[0] - cx) < r[2] + hw && Math.abs(r[1] - cy) < r[3] + hh) cy = r[1] - r[3] - hh - 10 < SAFE_TOP + hh ? r[1] + r[3] + hh + 10 : r[1] - r[3] - hh - 10;
     placed.push([cx, cy, hw, hh]);
     const pop = t - changeT < 0.28 ? 1 + 0.28 * Math.sin(clamp((t - changeT) / 0.28) * Math.PI) : 1;
-    o.save(); o.translate(cx, cy); o.scale(cs * pop, cs * pop);
+    o.save(); o.globalAlpha = a._alpha ?? 1; o.translate(cx, cy); o.scale(cs * pop, cs * pop);
     const plate = new Path2D(); plate.roundRect(-pw / 2, -ph / 2, pw, ph, 18);
     o.fillStyle = 'rgba(0,0,0,.25)'; o.translate(0, 6); o.fill(plate); o.translate(0, -6);
     o.fillStyle = '#1b1d24'; o.fill(plate); o.lineWidth = 5; o.strokeStyle = INK; o.stroke(plate);
@@ -303,7 +306,9 @@ export function painter(tl) {
     if (shot.tint) { o.fillStyle = shot.tint; o.fillRect(0, 0, W, H); }
     if (shot.flash) { const q = (t - shot.flash) / 0.25; if (q >= 0 && q < 1) { o.fillStyle = `rgba(255,255,255,${(1 - q) * 0.85})`; o.fillRect(0, 0, W, H); } }
     const placed = [];
-    for (const a of actors) if (a._xy) counter(a, t, cam, placed);
+    const hidden = (shot.hideCounters || []).some(([a, b]) => t >= a && t < b);
+    if (!hidden) for (const a of actors) if (a._xy) counter(a, t, cam, placed);
+    for (const pc of shot.plates || []) if (t >= pc.t0 && t < (pc.t1 ?? 1e9)) counter({_led: {v: pc.v, changeT: -9, delta: 0}, _top: [pc.x, pc.y], _head: [pc.x, pc.y + 40], _s: 7, counterScale: pc.scale || 1}, t, cam, placed);
     for (const b of shot.bubbles || []) bubble(b, t, actors, cam, placed);
     titles(shot, t);
     captions(t);
@@ -337,7 +342,8 @@ async function encode(tl, frame, a, b, target) {
 
 function mixAudio(tl, video, target) {
   const A = tl.audio, args = ['-v', 'error', '-y', '-i', video, '-i', A.voice];
-  const filters = [`[1:a]aresample=48000,aformat=channel_layouts=stereo,volume=${A.voiceGain ?? 1}[v]`], buses = ['[v]'];
+  // voice-first mix: music, beds and effects form one bus that ducks under the narration (sidechain), then join the voice
+  const filters = [`[1:a]aresample=48000,aformat=channel_layouts=stereo,volume=${A.voiceGain ?? 1},asplit=2[v][vkey]`], buses = [];
   let n = 2;
   if (A.music) {
     args.push('-stream_loop', '-1', '-i', A.music.path);
@@ -355,7 +361,10 @@ function mixAudio(tl, video, target) {
     filters.push(`[${n}:a]aresample=48000,aformat=channel_layouts=stereo,${trim}volume=${s.gain ?? 0.6},adelay=${Math.round(Math.max(0, s.t) * 1000)}:all=1[s${n}]`);
     buses.push(`[s${n}]`); n++;
   }
-  filters.push(`${buses.join('')}amix=inputs=${buses.length}:normalize=0:duration=first,atrim=0:${tl.duration},loudnorm=I=-14:TP=-1.2:LRA=9[a]`);
+  const duck = A.duck ?? {threshold: 0.025, ratio: 5, attack: 12, release: 280};
+  filters.push(`${buses.join('')}amix=inputs=${buses.length}:normalize=0[bg]`);
+  filters.push(`[bg][vkey]sidechaincompress=threshold=${duck.threshold}:ratio=${duck.ratio}:attack=${duck.attack}:release=${duck.release}:makeup=1[bgd]`);
+  filters.push(`[v][bgd]amix=inputs=2:normalize=0:duration=first,atrim=0:${tl.duration},loudnorm=I=${A.lufs ?? -14}:TP=-2.2:LRA=9,alimiter=limit=0.76:level=false[a]`);
   args.push('-filter_complex', filters.join(';'), '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', '-t', String(tl.duration), target);
   const r = spawnSync('ffmpeg', args, {encoding: 'utf8', maxBuffer: 64 << 20});
   if (r.status !== 0) throw new Error(r.stderr.slice(-3000));
