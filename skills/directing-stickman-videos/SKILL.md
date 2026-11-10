@@ -16,6 +16,8 @@ Keep the existing installation/name. Honor known choices; ask one short question
 
 - **B5 · Character Explainer:** read [B5](references/b5-character-explainer.md) for avatar approval, physical comedy, sound and code rendering; no B1–B4 alias.
 
+- **B6 · Rule-World 2D:** read [B6](references/b6-rule-world.md) for the vertical "in this world…" series: cut-out 2D puppets, deadline counters, top captions; shares the manifest runtime, no alias to B3/B4.
+
 A and B share installation, not production contracts. The rules from **A · Director** to the end apply only to A1–A5, not to A6 or any B style. Each B owns its visuals, captions, voice, pacing and SFX; never default to B1 or import A's setup, ten-second clips, approval or visible-text rules. Preserve unrelated styles when revising one route.
 
 B supports topics, promotion briefs, posts, articles and scripts. English narration is default; explicit language/voice choices prevail. Follow [selected-provider execution](references/autopilot.md#selected-provider-execution) before declaring a non-default service unsupported: a missing bundled adapter is not a provider prohibition. Use the selected native named TTS voice without added voice/style descriptions by default; B4 permits story-motivated secondary-role acting, not automatic narrator tuning. Read the required [story-led sound system](references/autopilot-sound-system.md). Never automatically revoice accepted media.

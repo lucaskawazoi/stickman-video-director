@@ -11,12 +11,17 @@ function fields(value, allowed, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => !allowed.includes(k))) throw new Error(`Unsupported B4 ${label} fields; native source rate is required`);
 }
 
-export function prepareB4(p, {base, duration, rangeEnd, assets, mediaPath, probe}) {
+export function prepareB4(p, context) {
   const lock = verifyB4StyleLock();
-  for (const item of [...lock.references, lock.prompt]) assets.add(item.path);
+  for (const item of [...lock.references, lock.prompt]) context.assets.add(item.path);
   if (!((p.voice.name === BRIAN.name && p.voice.id === BRIAN.id) ||
     (text(p.voice.user_override) && text(p.voice.name) && text(p.voice.id)))) throw new Error('B4 requires verified Brian identity or an explicit narrator user_override');
   if ((p.voice.lead ?? 0) > 0.1 && !text(p.opening_audio_override)) throw new Error('B4 has no silent title pad; remove voice lead or record opening_audio_override');
+  return prepareTracks(p, context, {requireBed: true});
+}
+
+// Shared native-rate track validation (B4 requires a continuous bed; B6 may rely on a music bed instead).
+export function prepareTracks(p, {base, duration, rangeEnd, assets, mediaPath, probe}, {requireBed}) {
   if (p.voice.contains_sfx !== undefined && typeof p.voice.contains_sfx !== 'boolean') throw new Error('B4 contains_sfx must be boolean');
   for (const key of ['ambience', 'dialogue', 'audio_cuts']) if (p[key] !== undefined && !Array.isArray(p[key])) throw new Error(`B4 ${key} must be an array`);
   const active = (list, time) => (list || []).filter(item => !item || !Number.isFinite(item[time]) || item[time] < rangeEnd);
@@ -48,7 +53,7 @@ export function prepareB4(p, {base, duration, rangeEnd, assets, mediaPath, probe
     return {...item, end: Math.min(item.end, rangeEnd)};
   });
   if (p.voice.contains_sfx && (sfx.length || ambience.length || dialogue.length || p.music || audio_cuts.length)) throw new Error('Already mixed B4 master must not receive duplicate audio tracks/cuts');
-  if (!p.voice.contains_sfx) {
+  if (!p.voice.contains_sfx && requireBed) {
     const coverage = [...ambience, ...audio_cuts].sort((a, b) => a.start - b.start);
     let end = 0;
     for (const interval of coverage) {

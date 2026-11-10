@@ -21,11 +21,11 @@ async function main() {
     if (!args[0]) throw new Error('Project directory required');
     const style = option('--style', 'B1');
     if (style === 'B5') { console.log(JSON.stringify(initB5(args[0]))); return; }
-    if (!STYLES.includes(style)) throw new Error('Choose style B1, B2, B3, B4 or B5');
+    if (!STYLES.includes(style)) throw new Error('Choose style B1, B2, B3, B4, B5 or B6');
     const dir = path.resolve(args[0]); if (fs.existsSync(dir)) throw new Error('Project directory already exists; will not overwrite');
     if (dir.startsWith(ROOT + path.sep)) throw new Error('Create projects outside the installed Skill');
     fs.mkdirSync(dir, {recursive: true});
-    save(path.join(dir, 'project.json'), {version: 1, style, width: 1280, height: 720, fps: 30, voice: {path: 'narration.wav', lead: 0, tail: 0, ...(style === 'B4' ? BRIAN : {})}, captions: [], shots: [], sfx: [], ...(style === 'B3' ? {television: {enabled: true, intensity: 0.45}} : {}), ...(style === 'B4' ? {ambience: [], dialogue: [], audio_cuts: []} : {})});
+    save(path.join(dir, 'project.json'), {version: 1, style, width: style === 'B6' ? 1080 : 1280, height: style === 'B6' ? 1920 : 720, fps: 30, voice: {path: 'narration.wav', lead: 0, tail: 0, ...(style === 'B4' ? BRIAN : {})}, captions: [], shots: [], sfx: [], ...(style === 'B3' ? {television: {enabled: true, intensity: 0.45}} : {}), ...(['B4', 'B6'].includes(style) ? {ambience: [], dialogue: [], audio_cuts: []} : {})});
     console.log(JSON.stringify({project: path.join(dir, 'project.json'), stage: 'scaffold; add approved narration, aligned captions and authored scenes before rendering'}));
   } else if (command === 'captions') {
     if (!args[0] || !args[1]) throw new Error('Aligned word input and output file required');

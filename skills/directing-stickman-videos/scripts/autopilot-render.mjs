@@ -9,10 +9,36 @@ import {appendB4Audio} from './b4-runtime.mjs';
 import {checkOpeningFile} from './b4-opening-audio-check.mjs';
 
 const clamp = x => Math.max(0, Math.min(1, x));
+// B6 · Rule-World 2D: a deadline counter shown as years/months, coloured by urgency.
+export function counterText(l) {
+  if (typeof l.text === 'string' && l.text.trim()) return l.text;
+  const m = Math.max(0, Math.ceil((l.value ?? 0) - 0.02)), y = Math.floor(m / 12), r = m % 12;
+  if (l.unit === 'dias') return `${m} ${m === 1 ? 'DIA' : 'DIAS'}`;
+  if (m === 0) return l.zeroText || 'ZEROU';
+  if (!r) return `${y} ${y === 1 ? 'ANO' : 'ANOS'}`;
+  if (!y) return `${r} ${r === 1 ? 'MÊS' : 'MESES'}`;
+  return `${y}A ${r}M`;
+}
+function counterColor(l) {
+  if (l.color) return l.color;
+  if (typeof l.text === 'string' && l.text.trim()) return '#ffd23f';
+  const m = l.value ?? 0;
+  return m < 1e-6 ? '#9aa0a8' : m <= 6 ? '#ff5a4f' : m <= 24 ? '#ffd23f' : '#5be37d';
+}
+// `*word*` = yellow keyword, `!word!` = red keyword (B6 top captions).
+export function captionRuns(text) {
+  const runs = []; const re = /(\*[^*]+\*|![^!]+!)/g; let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) runs.push({text: text.slice(last, m.index), color: null});
+    runs.push({text: m[0].slice(1, -1), color: m[0][0] === '*' ? '#ffd23f' : '#ff5a4f'}); last = re.lastIndex;
+  }
+  if (last < text.length) runs.push({text: text.slice(last), color: null});
+  return runs;
+}
 const ease = x => { x = clamp(x); return x * x * (3 - 2 * x); };
 export function keyState(l, t) {
   const out = {...l};
-  for (const prop of ['x', 'y', 'w', 'angle', 'alpha', 'progress', 'scaleX', 'scaleY']) {
+  for (const prop of ['x', 'y', 'w', 'angle', 'alpha', 'progress', 'scaleX', 'scaleY', 'value', 'blur']) {
     const keys = (l.keys || []).filter(k => k[prop] !== undefined);
     if (!keys.length) continue;
     if (t <= keys[0].t) out[prop] = keys[0][prop];
@@ -38,6 +64,7 @@ export async function painter(p) {
   const fonts = fontPaths(p);
   const plane = designPlane(p), captionBand = plane.height - 110;
   if (!GlobalFonts.registerFromPath(fonts.hand, 'B1Hand') || !GlobalFonts.registerFromPath(fonts.caption, 'B1Caption')) throw new Error('Font registration failed');
+  if (fonts.display && !GlobalFonts.registerFromPath(fonts.display, 'B6Display')) throw new Error('Font registration failed');
   const canvas = createCanvas(p.width, p.height), ctx = canvas.getContext('2d');
   const sceneCopy = p.style === 'B3' ? createCanvas(p.width, p.height) : null;
   const images = new Map();
@@ -54,7 +81,7 @@ export async function painter(p) {
   }
   return function frame(t) {
     ctx.resetTransform(); ctx.clearRect(0, 0, p.width, p.height); ctx.scale(p.width / plane.width, p.width / plane.width);
-    ctx.fillStyle = ['B3', 'B4'].includes(p.style) ? '#111316' : p.style === 'B2' ? '#f4f0e5' : '#FDFDFC'; ctx.fillRect(0, 0, plane.width, plane.height);
+    ctx.fillStyle = ['B3', 'B4'].includes(p.style) ? '#111316' : p.style === 'B2' ? '#f4f0e5' : p.style === 'B6' ? '#f3ece0' : '#FDFDFC'; ctx.fillRect(0, 0, plane.width, plane.height);
     if (p.style === 'B1' && p.grid !== false) {
       ctx.beginPath(); ctx.strokeStyle = 'rgba(76,90,105,.036)'; ctx.lineWidth = 0.8;
       for (let x = 32.5; x < plane.width; x += 64) { ctx.moveTo(x, 0); ctx.lineTo(x, captionBand - 1); }
@@ -66,6 +93,7 @@ export async function painter(p) {
       if (dt < (layer.from || 0) || dt >= (layer.to ?? Infinity)) continue;
       const l = keyState(layer, dt), x = l.x || 0, y = l.y || 0, w = l.w || 200;
       ctx.save(); ctx.globalAlpha *= clamp(l.alpha ?? 1); ctx.translate(x, y);
+      if (l.blur > 0.05) ctx.filter = `blur(${(l.blur * p.width / plane.width).toFixed(2)}px)`;
       const px = l.pivotX || 0, py = l.pivotY || 0;
       ctx.translate(px, py); ctx.rotate(l.angle || 0); ctx.scale(l.scaleX ?? 1, l.scaleY ?? 1); ctx.translate(-px, -py);
       if (l.type === 'group') paintLayers(l.children);
@@ -77,6 +105,41 @@ export async function painter(p) {
       } else if (l.type === 'pose') {
         const img = images.get(mediaPath(p.base, '@b1/character-pose-sheet-v6.png')), sw = img.width / 3;
         ctx.drawImage(img, l.pose * sw, 0, sw, img.height, 0, 0, w, w * img.height / sw);
+      } else if (l.type === 'counter') {
+        // x/y = badge centre. Clock face ticks with time; the value is months (keyframable) or fixed text.
+        const label = (l.label || 'PRAZO').toUpperCase(), value = counterText(l), size = l.size || 64, pad = size * 0.32;
+        ctx.font = `${size * 0.42}px B6Display`; const lw = ctx.measureText(label).width;
+        ctx.font = `${size}px B6Display`; const vw = ctx.measureText(value).width;
+        const clock = l.clock === false ? 0 : size * 0.78, w = pad * 3 + clock + lw + pad * 0.6 + vw, h = size * 1.32;
+        ctx.translate(-w / 2, -h / 2);
+        ctx.fillStyle = l.fill || 'rgba(24,27,38,.93)'; ctx.strokeStyle = l.stroke || '#fdf8ee'; ctx.lineWidth = size * 0.07;
+        ctx.beginPath(); ctx.roundRect(0, 0, w, h, h * 0.28); ctx.fill(); ctx.stroke();
+        let cx = pad;
+        if (clock) {
+          const r = clock / 2, ox = cx + r, oy = h / 2, turn = (l.spin ?? 1) * (shot.start + dt) * Math.PI * 2;
+          ctx.strokeStyle = counterColor(l); ctx.lineWidth = size * 0.07; ctx.beginPath(); ctx.arc(ox, oy, r * 0.86, 0, Math.PI * 2); ctx.stroke();
+          ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.sin(turn) * r * 0.62, oy - Math.cos(turn) * r * 0.62);
+          ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.sin(turn / 12) * r * 0.42, oy - Math.cos(turn / 12) * r * 0.42); ctx.stroke();
+          cx += clock + pad * 0.6;
+        }
+        ctx.textBaseline = 'middle'; ctx.fillStyle = '#c9ccd3'; ctx.font = `${size * 0.42}px B6Display`; ctx.fillText(label, cx, h / 2 + size * 0.02);
+        ctx.fillStyle = counterColor(l); ctx.font = `${size}px B6Display`; ctx.fillText(value, cx + lw + pad * 0.6, h / 2 + size * 0.05);
+      } else if (l.type === 'bubble') {
+        // x/y = bubble centre; tail points at the speaker. chat = phone-message bubble.
+        const size = l.size || 46, chat = l.style === 'chat' || l.style === 'chat-out', family = chat ? 'B1Caption' : 'B6Display';
+        ctx.font = `${chat ? 500 : 400} ${size}px ${family}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+        const lines = wrap(ctx, l.text, l.w || 760), tw = Math.max(...lines.map(s => ctx.measureText(s).width));
+        const bw = tw + size * 1.3, bh = lines.length * size * 1.18 + size * 0.9;
+        ctx.translate(-bw / 2, -bh / 2);
+        ctx.fillStyle = l.fill || (l.style === 'chat-out' ? '#d6f5c9' : '#ffffff'); ctx.strokeStyle = l.stroke || '#2a2420'; ctx.lineWidth = chat ? 3 : 6;
+        ctx.beginPath(); ctx.roundRect(0, 0, bw, bh, chat ? size * 0.5 : bh * 0.45);
+        const tail = l.tail || 'none';
+        if (tail !== 'none') { const tx = tail.endsWith('left') ? bw * 0.28 : bw * 0.72, dir = tail.endsWith('left') ? -1 : 1; ctx.moveTo(tx - 22, bh - 2); ctx.lineTo(tx + dir * 40, bh + 58); ctx.lineTo(tx + 22, bh - 2); }
+        ctx.fill(); ctx.stroke();
+        if (tail !== 'none') { const tx = tail.endsWith('left') ? bw * 0.28 : bw * 0.72; ctx.fillRect(tx - 19, bh - 9, 38, 10); }
+        ctx.fillStyle = l.color || '#2a2420';
+        lines.forEach((s, i) => ctx.fillText(s, bw / 2, size * 0.45 + size * 1.18 * (i + 0.5) + 2));
+        ctx.textAlign = 'left';
       } else if (l.type === 'shadow') {
         const gradient = ctx.createLinearGradient(0, 0, w, 0);
         gradient.addColorStop(0, 'rgba(10,12,14,.96)');
@@ -84,9 +147,15 @@ export async function painter(p) {
         gradient.addColorStop(1, 'rgba(10,12,14,0)');
         ctx.fillStyle = gradient; ctx.fillRect(0, 0, w, l.h);
       } else if (l.type === 'text') {
-        const size = l.size || 52; ctx.font = `${l.bold ? 700 : 400} ${size}px ${['B3', 'B4'].includes(p.style) ? 'B1Caption' : 'B1Hand'}`; ctx.fillStyle = l.color || (['B3', 'B4'].includes(p.style) ? '#e9eaea' : '#191916'); ctx.textBaseline = 'top';
+        const size = l.size || 52, family = p.style === 'B6' ? (l.font === 'hand' ? 'B1Hand' : l.font === 'sans' ? 'B1Caption' : 'B6Display') : ['B3', 'B4'].includes(p.style) ? 'B1Caption' : 'B1Hand';
+        ctx.font = `${l.bold ? 700 : 400} ${size}px ${family}`; ctx.fillStyle = l.color || (['B3', 'B4'].includes(p.style) ? '#e9eaea' : '#191916'); ctx.textBaseline = 'top';
+        if (l.align === 'center') ctx.textAlign = 'center';
         const lines = wrap(ctx, l.text, l.w || 1080 - x);
-        lines.forEach((s, i) => ctx.fillText(s, 0, i * size * 1.15));
+        lines.forEach((s, i) => {
+          if (l.outline) { ctx.strokeStyle = l.outline; ctx.lineWidth = l.lineWidth || size / 8; ctx.lineJoin = 'round'; ctx.strokeText(s, 0, i * size * 1.15); }
+          ctx.fillText(s, 0, i * size * 1.15);
+        });
+        ctx.textAlign = 'left';
       } else {
         let points = l.points;
         if (l.type === 'underline') points = [[0, 1], [w * 0.25, -1], [w * 0.55, 2], [w, -2]];
@@ -102,7 +171,23 @@ export async function painter(p) {
       televisionFinish(ctx, sceneCopy, p.width, p.height, p.television?.intensity ?? 0.45);
     }
     const cue = p.captions.find(c => t >= c.start && t < c.end);
-    if (cue) {
+    if (cue && p.style === 'B6') {
+      // Top captions: 1–3 words, condensed caps, dark outline, pop-in over 0.1 s.
+      const size = p.captionSize || 118, runs = captionRuns(cue.text.toUpperCase());
+      ctx.font = `${size}px B6Display`; ctx.textBaseline = 'middle';
+      const widths = runs.map(r => ctx.measureText(r.text).width), total = widths.reduce((a, b) => a + b, 0);
+      if (/[\r\n]/.test(cue.text) || total > plane.width - 100) throw new Error('B captions allow at most one line; split the timed cue at a semantic boundary');
+      const pop = 1 + 0.14 * (1 - ease((t - cue.start) / 0.1)), cy = p.captionY ?? plane.height * 0.11;
+      ctx.save(); ctx.translate(plane.width / 2, cy); ctx.scale(pop, pop);
+      let x = -total / 2;
+      runs.forEach((r, i) => {
+        ctx.lineJoin = 'round'; ctx.strokeStyle = '#1a1714'; ctx.lineWidth = size * 0.16;
+        ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowOffsetY = size * 0.06; ctx.shadowBlur = 0;
+        ctx.strokeText(r.text, x, 0); ctx.shadowColor = 'transparent';
+        ctx.fillStyle = r.color || '#ffffff'; ctx.fillText(r.text, x, 0); x += widths[i];
+      });
+      ctx.restore();
+    } else if (cue) {
       ctx.font = `${p.style === 'B2' ? 500 : 600} ${p.captionSize || (p.style === 'B2' ? 40 : 34)}px B1Caption`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       if (/[\r\n]/.test(cue.text)) throw new Error('B captions allow at most one line; split the timed cue at a semantic boundary');
       const lines = wrap(ctx, p.style === 'B3' ? cue.text.toUpperCase() : cue.text, 1120);
@@ -202,24 +287,25 @@ export async function render(p, {full = false, seconds = 20, replace = false} = 
     const args = ['-v', 'error', '-y', '-f', 'concat', '-safe', '1', '-i', list, '-i', p.voicePath];
     const trim = p.voiceTrimStart ? `atrim=start=${p.voiceTrimStart},asetpts=PTS-STARTPTS,` : '';
     const filters = [`[1:a]${trim}adelay=${Math.round(p.lead * 1000)}:all=1,apad,atrim=0:${count / p.fps}[voice]`], mixes = ['[voice]'], backgrounds = [];
-    const effects = p.style === 'B4' ? backgrounds : mixes; let idx = 2;
+    const effects = ['B4', 'B6'].includes(p.style) ? backgrounds : mixes; let idx = 2;
     if (p.sfx?.some(s => s.kind !== 'file')) { const f = path.join(cache, 'sfx.wav'); makeSfx(p, f, count / p.fps); args.push('-i', f); effects.push(`[${idx++}:a]`); }
-    if (p.style === 'B4') idx = appendB4Audio(p, args, filters, mixes, backgrounds, idx);
+    if (['B4', 'B6'].includes(p.style)) idx = appendB4Audio(p, args, filters, mixes, backgrounds, idx);
     if (p.music) { args.push('-stream_loop', '-1', '-i', mediaPath(p.base, p.music.path)); filters.push(`[${idx++}:a]volume=${p.music.gain}[music]`); effects.push('[music]'); }
     if (backgrounds.length) {
       const cuts = p.audio_cuts.map(cut => `volume=0:enable='gte(t,${cut.start})*lt(t,${cut.end})'`);
       filters.push(`${backgrounds.join('')}amix=inputs=${backgrounds.length}:normalize=0:duration=longest${cuts.length ? ',' + cuts.join(',') : ''}[background]`);
       mixes.push('[background]');
     }
-    filters.push(`${mixes.join('')}amix=inputs=${mixes.length}:normalize=0:duration=first,alimiter=limit=0.97:level=false:latency=true[a]`);
+    filters.push(`${mixes.join('')}amix=inputs=${mixes.length}:normalize=0:duration=first,${p.style === 'B6' ? 'loudnorm=I=-14:TP=-2:LRA=11,aresample=48000' : 'alimiter=limit=0.97:level=false:latency=true'}[a]`);
     const partial = path.join(out, `${kind}.partial.mp4`);
     args.push('-filter_complex', filters.join(';'), '-map', '0:v:0', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-t', String(count / p.fps), '-movflags', '+faststart', partial);
     run(FFMPEG, args); run(FFMPEG, ['-v', 'error', '-i', partial, '-f', 'null', '-']); fs.renameSync(partial, target);
     const cues = p.captions.filter(c => c.start < duration).map(c => ({...c, end: Math.min(c.end, duration)}));
     fs.writeFileSync(path.join(out, `${kind}.srt`), cues.map((c, i) => `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${c.text}\n`).join('\n'));
     fs.writeFileSync(path.join(out, `${kind}.vtt`), 'WEBVTT\n\n' + cues.map(c => `${stamp(c.start, true)} --> ${stamp(c.end, true)}\n${c.text}\n`).join('\n'));
-    const sheet = createCanvas(960, 540), sc = sheet.getContext('2d');
-    for (let i = 0; i < 9; i++) sc.drawImage(frame(Math.min(duration - 1 / p.fps, (i + 0.5) * duration / 9)), (i % 3) * 320, Math.floor(i / 3) * 180, 320, 180);
+    const portrait = p.height > p.width, tw = portrait ? 180 : 320, th = portrait ? 320 : 180, cols = portrait ? 6 : 3, rows = portrait ? 2 : 3;
+    const sheet = createCanvas(tw * cols, th * rows), sc = sheet.getContext('2d');
+    for (let i = 0; i < cols * rows; i++) sc.drawImage(frame(Math.min(duration - 1 / p.fps, (i + 0.5) * duration / (cols * rows))), (i % cols) * tw, Math.floor(i / cols) * th, tw, th);
     fs.writeFileSync(path.join(out, `${kind}-contact-sheet.png`), sheet.toBuffer('image/png'));
     const info = probe(target), report = {fingerprint: p.fingerprint, preview_seconds: full ? null : duration, output: target, output_sha256: hashFile(target), original_voice_sha256: hashFile(p.voicePath), original_voice_duration: p.voiceDuration, voice_rate: 'unchanged; leading/trailing padding only', frames: count, duration: Number(info.format.duration), cache_hits: reused, shot_count: clips.length, full_decode: 'pass', caption_count: cues.length, human_review: 'required; technical checks are not acceptance', inputs: p.inputs};
     if (p.style === 'B4') {
