@@ -50,7 +50,7 @@ function poseAt(a, t) {
   let cur = list[0], prev = list[0];
   for (let i = 0; i < list.length; i++) if (t >= list[i][0]) { prev = list[i - 1] || list[i]; cur = list[i]; }
   const k = ease((t - cur[0]) / 0.22);
-  const A = POSES[prev[1]] || POSES.rest, B = POSES[cur[1]] || POSES.rest;
+  const P = x => typeof x === 'object' ? x : POSES[x] || POSES.rest, A = P(prev[1]), B = P(cur[1]);
   const mixArm = s => [lerp(A[s][0], B[s][0], k), lerp(A[s][1], B[s][1], k)];
   const p = {L: mixArm('L'), R: mixArm('R')};
   const ph = hash(a.id) * 6.28;
@@ -59,6 +59,7 @@ function poseAt(a, t) {
   if (cur[1] === 'knock') p.R[1] += Math.max(0, Math.sin(t * 13)) * 35;
   if (cur[1] === 'cheer') { p.L[0] += Math.sin(t * 8 + ph) * 8; p.R[0] += Math.sin(t * 8 + ph + 1) * 8; }
   if (cur[1] === 'water') p.R[0] += Math.sin(t * 2) * 6;
+  if (cur[1] === 'rock') { p.L[0] += Math.sin(t * 5) * 9; p.R[0] -= Math.sin(t * 5) * 9; }
   if (cur[1] === 'rest' || cur[1] === 'sad') { p.L[0] += Math.sin(t * 1.3 + ph) * 2; p.R[0] += Math.sin(t * 1.3 + ph + 2) * 2; }
   return p;
 }
@@ -114,8 +115,8 @@ export function painter(tl) {
     const walk = walkSeg ? (t - walkSeg[0]) * (walkSeg[2] || 9) : null;
     const st = {
       pose: poseAt(a, t), expr: stepAt(a.expr, t, a.exprDefault || 'neutral'), talk: talkAt(a, t), blink: blinkAt(a, t),
-      gaze: stepAt(a.gaze, t, [0, 0]), tilt: stepAt(a.tilt, t, 0) + Math.sin(t * 1.1 + hash(a.id) * 9) * 1.2,
-      walk, bob: walk != null ? -Math.abs(Math.sin(walk)) * 1.4 : Math.sin(t * 2.4 + hash(a.id) * 9) * 0.35,
+      gaze: stepAt(a.gaze, t, [0, 0]), tilt: stepAt(a.tilt, t, 0) + Math.sin(t * 1.1 + hash(a.id) * 9) * 1.2 + (a.sway ? Math.sin(t * a.sway[0]) * a.sway[1] : 0),
+      walk, bob: walk != null ? -Math.abs(Math.sin(walk)) * 1.4 : a.hop ? -Math.abs(Math.sin(t * a.hop)) * 3 : Math.sin(t * 2.4 + hash(a.id) * 9) * 0.35,
     };
     const alpha = keyAt(a.keys, t, 'alpha', a.alpha ?? 1); if (alpha <= 0.001) { a._xy = null; return; }
     w.save(); w.globalAlpha = alpha; w.translate(x, y); w.scale(s * (a.flip ? -1 : 1), s);
@@ -142,20 +143,26 @@ export function painter(tl) {
   const SAFE_TOP = 400, SAFE_X = 24;
   const toScreen = (cam, [x, y]) => [(x - cam.x) * cam.z + W / 2, (y - cam.y) * cam.z + H / 2];
   function counter(a, t, cam, placed) {
-    if (!a._led || a.counter === false) return;
+    if (!a._led || a.counter === false || t < (a.counterT0 ?? -1)) return;
     const {v, changeT, delta} = a._led;
     const cs = clamp((a.counterScale || 1) * Math.max(0.8, Math.min(1.25, a._s / 7)) * Math.sqrt(cam.z), 0.75, 1.6);
     const pw = 236, ph = 84, hw = pw / 2 * cs, hh = ph / 2 * cs;
     const [hx, hy] = toScreen(cam, a._top), [, hc] = toScreen(cam, a._head);
     if (hx < -60 || hx > W + 60 || hc < -100 || hc > H + 60) return; // only characters in frame carry a counter
+    const r = (a._headR || 15) * a._s * cam.z;
     let cx = hx + (a.counterDx || 0) * cam.z, cy = hy - (a.counterGap ?? 0) * cam.z - hh - 14;
-    if (cy - hh < SAFE_TOP) { // no room above the head: sit beside it
-      const r = (a._headR || 15) * a._s * cam.z;
-      cy = Math.max(SAFE_TOP + hh, hc - r * 0.2);
-      cx = hx + (hx + r + 20 + pw * cs < W ? r + 20 + hw : -(r + 20 + hw));
+    if (cy - hh < SAFE_TOP) { // no room above the head
+      const right = hx + r + 24 + 2 * hw < W - SAFE_X, left = hx - r - 24 - 2 * hw > SAFE_X;
+      if (right || left) { cx = hx + (right ? r + 24 + hw : -(r + 24 + hw)); cy = Math.max(SAFE_TOP + hh, hc - r * 0.2); }
+      else { cx = hx; cy = hc + r * 1.25 + hh; } // under the chin
     }
     cx = clamp(cx, SAFE_X + hw, W - SAFE_X - hw); cy = clamp(cy, SAFE_TOP + hh, H - 120 - hh);
-    for (const r of placed) if (Math.abs(r[0] - cx) < r[2] + hw && Math.abs(r[1] - cy) < r[3] + hh) cy = r[1] - r[3] - hh - 10 < SAFE_TOP + hh ? r[1] + r[3] + hh + 10 : r[1] - r[3] - hh - 10;
+    for (let pass = 0; pass < 3; pass++) for (const q of placed) {
+      if (Math.abs(q[0] - cx) < q[2] + hw + 8 && Math.abs(q[1] - cy) < q[3] + hh + 8) {
+        const dx = q[2] + hw + 12, toRight = cx >= q[0] ? q[0] + dx : q[0] - dx;
+        if (toRight - hw >= SAFE_X && toRight + hw <= W - SAFE_X) cx = toRight; else cy = q[1] - q[3] - hh - 12 < SAFE_TOP + hh ? q[1] + q[3] + hh + 12 : q[1] - q[3] - hh - 12;
+      }
+    }
     placed.push([cx, cy, hw, hh]);
     const pop = t - changeT < 0.28 ? 1 + 0.28 * Math.sin(clamp((t - changeT) / 0.28) * Math.PI) : 1;
     o.save(); o.globalAlpha = a._alpha ?? 1; o.translate(cx, cy); o.scale(cs * pop, cs * pop);
@@ -176,8 +183,7 @@ export function painter(tl) {
     o.restore();
     const q = (t - changeT) / 0.95;
     if (delta && q >= 0 && q < 1 && !a.noDelta) {
-      const dx = cx + hw + 40 * cs < W - 30 ? hw + 34 * cs : -hw - 34 * cs;
-      o.save(); o.globalAlpha = 1 - q * q; o.translate(cx + dx, cy - 6 * cs - q * 90 * cs); o.scale(cs, cs);
+      o.save(); o.globalAlpha = 1 - q * q; o.translate(cx + hw * 0.55, Math.max(SAFE_TOP - 20, cy - hh - 18 * cs - q * 70 * cs)); o.scale(cs, cs);
       o.font = '60px R1Caption'; o.textAlign = 'center'; o.lineWidth = 10; o.strokeStyle = INK; o.lineJoin = 'round';
       const txt = (delta > 0 ? '+' : '') + delta; o.strokeText(txt, 0, 0); o.fillStyle = delta > 0 ? '#ffd23f' : '#ff4d4d'; o.fillText(txt, 0, 0);
       o.restore();
@@ -196,7 +202,7 @@ export function painter(tl) {
     let side = b.side || 'right';
     if (side === 'right' && mx + r + 40 + bw > W - SAFE_X) side = 'left';
     if (side === 'left' && mx - r - 40 - bw < SAFE_X) side = 'right';
-    let bx = side === 'right' ? mx + r * 0.9 + 30 : mx - r * 0.9 - 30 - bw, by = my - r * 1.3 - bh;
+    let bx = side === 'above' ? mx - bw / 2 : side === 'right' ? mx + r * 0.9 + 30 : mx - r * 0.9 - 30 - bw, by = side === 'above' ? my - r * 2.3 - bh : my - r * 1.3 - bh;
     bx = clamp(bx + (b.dx || 0), SAFE_X, W - SAFE_X - bw); by = clamp(by + (b.dy || 0), SAFE_TOP - 10, H - 200 - bh);
     for (const rc of placed) if (bx < rc[0] + rc[2] && bx + bw > rc[0] - rc[2] && by < rc[1] + rc[3] && by + bh > rc[1] - rc[3]) by = Math.min(H - 200 - bh, rc[1] + rc[3] + 12);
     o.save(); o.translate(mx, my); o.scale(k, k); o.translate(-mx, -my);
@@ -252,8 +258,8 @@ export function painter(tl) {
     const sc = Math.min(1, 1000 / total); o.save(); o.translate(W / 2, tl.captionY || 268); o.scale(sc, sc);
     let x = -total / 2;
     shown.forEach((wd, i) => {
-      const age = t - wd.s, pop = age < 0.09 ? 1.18 - 0.18 * (age / 0.09) : 1;
-      o.save(); o.translate(x + widths[i] / 2, 0); o.scale(pop, pop);
+      const age = t - wd.s;
+      o.save(); o.globalAlpha = clamp(0.35 + age / 0.08); o.translate(x + widths[i] / 2, 0);
       o.lineJoin = 'round'; o.textAlign = 'center';
       o.fillStyle = 'rgba(0,0,0,.35)'; o.fillText(wd.text, 4, 8);
       o.lineWidth = 16; o.strokeStyle = '#141414'; o.strokeText(wd.text, 0, 0);

@@ -27,6 +27,8 @@ export const POSES = {
   wave: {L: [10, 4], R: [150, -30]},
   waveL: {L: [150, -30], R: [10, 4]},
   cheer: {L: [155, 10], R: [155, 10]},
+  up: {L: [155, 10], R: [155, 10]},      // cheer without the shake (calm beats)
+  rock: {L: [-25, -70], R: [-25, -70]},  // carry + rocking (renderer adds the sway)
   hips: {L: [40, -115], R: [40, -115]},
   shrug: {L: [55, 70], R: [55, 70]},
   point: {L: [10, 4], R: [95, 0]},

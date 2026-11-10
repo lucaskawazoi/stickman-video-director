@@ -267,9 +267,9 @@ export const PROPS = {
   heart(ctx) { const h = new Path2D(); h.moveTo(0, 18); h.bezierCurveTo(-30, -2, -18, -26, 0, -10); h.bezierCurveTo(18, -26, 30, -2, 0, 18); fs(ctx, h, '#ff4d6d', 3); },
   photo(ctx, {baby = {kind: 'baby', skin: '#8a5a3c', blanket: '#f3d36b', hairColor: '#1f1512'}} = {}) { // framed photo of a grey newborn in a crib
     ctx.save(); ctx.rotate(-0.04);
-    fs(ctx, rr(-160, -190, 320, 380, 10), '#c49a62', 8); fs(ctx, rr(-132, -162, 264, 324, 4), '#d9d6cf', 4);
+    fs(ctx, rr(-160, -190, 320, 380, 10), '#c49a62', 8); fs(ctx, rr(-132, -162, 264, 324, 4), '#8f8c86', 4);
     ctx.save(); ctx.beginPath(); ctx.rect(-132, -162, 264, 324); ctx.clip();
-    ctx.fillStyle = '#9b9893'; ctx.fillRect(-132, 60, 264, 110);
+    ctx.fillStyle = '#6f6c67'; ctx.fillRect(-132, 60, 264, 110);
     ctx.save(); ctx.translate(0, 40); ctx.scale(5.2, 5.2); ctx.filter = 'saturate(0)'; drawBaby(ctx, baby, {expr: 'sad'}); ctx.filter = 'none'; ctx.restore();
     for (let x = -120; x <= 120; x += 30) fs(ctx, rr(x - 4, 40, 8, 120, 3), '#bdb8ae', 3);
     fs(ctx, rr(-132, 30, 264, 16, 4), '#a8a39a', 3);
