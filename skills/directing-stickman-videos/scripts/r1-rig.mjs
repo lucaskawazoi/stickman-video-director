@@ -175,7 +175,11 @@ export function drawCharacter(ctx, spec, st = {}) {
       const m = Math.max(0, st.marks || 0);
       if (m >= 20) { // a lifetime of marks: the stain climbs the forearm
         const k = Math.min(1, (m - 20) / 40), F = [W[0] + (E[0] - W[0]) * 0.75 * k, W[1] + (E[1] - W[1]) * 0.75 * k];
-        if (k > 0.05) segment(ctx, W, F, P.armW * 0.92, MARK);
+        if (k > 0.05) { // blots climbing the forearm, irregular, so it reads as ink and not as a long glove
+          ctx.fillStyle = MARK; const n = Math.round(3 + 7 * k);
+          for (let i = 0; i < n; i++) { const q = i / Math.max(1, n - 1), cx = W[0] + (F[0] - W[0]) * q, cy = W[1] + (F[1] - W[1]) * q, br = P.armW * (0.62 - 0.22 * q);
+            const p = new P2D(); for (let j = 0; j < 8; j++) { const a = j / 8 * Math.PI * 2, r = br * (0.75 + 0.35 * Math.abs(Math.sin(j * 2.3 + i))); j ? p.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r) : p.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } p.closePath(); ctx.fill(p); }
+        }
       }
       fillStroke(ctx, circle(W[0], W[1], hr), m >= 20 ? MARK : spec.skin);
       if (m > 0 && m < 20) { // ink blots: the right hand takes the odd marks, the left the even ones

@@ -147,10 +147,11 @@ export const GRACE_SETS = {
     };
   },
   // bathroom washbasin: cream tiles, mirror, a bright lamp. Bright at night on purpose (the scrub scene).
-  gBath() {
+  gBath({night = false} = {}) {
     return ctx => {
       ctx.fillStyle = '#fbf3e3'; ctx.fillRect(0, 0, 1080, 1920);
       ctx.strokeStyle = '#e6d6b8'; ctx.lineWidth = 4; for (let y = 0; y < 1300; y += 90) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1080, y); ctx.stroke(); } for (let x = 0; x < 1080; x += 90) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1300); ctx.stroke(); }
+      if (night) windowPane(ctx, 820, 420, 180, 240, 'night');
       fs(ctx, rr(330, 300, 420, 460, 200), '#c9a46a', 8); fs(ctx, rr(352, 322, 376, 416, 180), '#d9eef0', 5);
       ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fill(poly([[420, 380], [470, 360], [400, 600], [370, 580]]));
       fs(ctx, rr(500, 180, 80, 70, 14), '#ffe9a6', 4); glow(ctx, 540, 230, 700, 0.35, '255,236,180');
@@ -206,6 +207,49 @@ export const GRACE_SETS = {
       fs(ctx, rr(420, 1300, 240, 40, 6), WARM.stone, 4);
     };
   },
+  // a hill path up to the market (stalls with awnings at the top), olive trees; time like gLane
+  gHill({time = 'gold'} = {}) {
+    return ctx => {
+      sky(ctx, time);
+      fs(ctx, poly([[0, 760], [300, 640], [620, 560], [1080, 520], [1080, 1920], [0, 1920]]), time === 'night' ? '#4c3a52' : '#d4ac6a', 5);
+      for (const [x, c] of [[620, '#c4643a'], [760, '#f4b942'], [900, '#7c8f4a']]) { fs(ctx, rr(x, 470, 120, 80, 4), '#fbf1dc', 4); fs(ctx, poly([[x - 14, 480], [x + 60, 420], [x + 134, 480]]), c, 4); }
+      const path = new Path2D(); path.moveTo(760, 560); path.quadraticCurveTo(420, 900, 640, 1250); path.quadraticCurveTo(820, 1560, 300, 1920); path.lineTo(860, 1920); path.quadraticCurveTo(1000, 1500, 820, 1250); path.quadraticCurveTo(620, 900, 830, 560); path.closePath(); fs(ctx, path, '#ecd6ad', 5);
+      ctx.strokeStyle = dark('#ecd6ad', 0.12); ctx.lineWidth = 3; for (let i = 0; i < 16; i++) { const y = 620 + i * i * 5.2; ctx.beginPath(); ctx.ellipse(700 + Math.sin(i) * 80, y, 30 + i * 4, 6 + i, 0, 0, Math.PI * 2); ctx.stroke(); }
+      olive(ctx, 150, 1180, 1.15); olive(ctx, 1000, 1000, 0.8); olive(ctx, 330, 820, 0.55);
+      fs(ctx, rr(120, 1500, 230, 60, 24), WARM.stone, 5);
+      if (SHADE[time]) { ctx.fillStyle = SHADE[time]; ctx.fillRect(0, 0, 1080, 1920); }
+    };
+  },
+  // a village school: ochre building with a bell, big windows, a dirt yard and a fig tree
+  gSchool({time = 'noon'} = {}) {
+    return ctx => {
+      sky(ctx, time);
+      fs(ctx, rr(60, 520, 960, 780, 6), '#e7c08a', 6);
+      fs(ctx, poly([[30, 530], [540, 300], [1050, 530]]), WARM.roof);
+      fs(ctx, rr(480, 330, 120, 150, 6), '#f4e4c8', 5); fs(ctx, el(540, 410, 34, 38), WARM.gold, 4);
+      for (const x of [120, 330, 640, 850]) { fs(ctx, rr(x, 640, 150, 200, 6), '#fbf1dc', 5); fs(ctx, rr(x + 12, 652, 126, 176, 3), time === 'night' ? '#ffd77a' : '#6a8aa0', 3); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x + 75, 652); ctx.lineTo(x + 75, 828); ctx.stroke(); }
+      const d = new Path2D(); d.moveTo(470, 1300); d.lineTo(470, 1020); d.arc(540, 1020, 70, Math.PI, 0); d.lineTo(610, 1300); d.closePath(); fs(ctx, d, '#3f6a7a', 5);
+      ctx.fillStyle = INK; ctx.font = '54px GraceCaption'; ctx.textAlign = 'center'; ctx.fillText('SCHOOL', 540, 600); ctx.textAlign = 'left';
+      olive(ctx, 990, 1320, 1.1);
+      ctx.fillStyle = '#d8b27e'; ctx.fillRect(0, 1300, 1080, 620); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, 1300); ctx.lineTo(1080, 1300); ctx.stroke();
+      ctx.fillStyle = 'rgba(120,80,40,.12)'; for (let i = 0; i < 40; i++) ctx.fill(el(hashN(i) * 1080, 1320 + hashN(i + 3) * 580, 30, 6));
+      if (SHADE[time]) { ctx.fillStyle = SHADE[time]; ctx.fillRect(0, 0, 1080, 1920); }
+      if (time === 'night') for (const x of [195, 405, 715, 925]) glow(ctx, x, 740, 240, 0.5); // lit classrooms: night frames keep contrast
+    };
+  },
+  // behind the gym: a long plank wall in shade, a bench, a drainpipe; quiet and a little dim
+  gGym({dim = true} = {}) {
+    return ctx => {
+      ctx.fillStyle = '#c99a6b'; ctx.fillRect(0, 0, 1080, 1920);
+      ctx.strokeStyle = dark('#c99a6b', 0.18); ctx.lineWidth = 4; for (let x = 0; x < 1080; x += 72) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1300); ctx.stroke(); }
+      fs(ctx, rr(860, 0, 34, 1300, 6), '#8a8f96', 4);
+      fs(ctx, rr(120, 380, 260, 180, 8), '#fbf1dc', 5); fs(ctx, rr(134, 394, 232, 152, 3), '#6a8aa0', 3);
+      ctx.fillStyle = '#9c7a52'; ctx.fillRect(0, 1300, 1080, 620); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, 1300); ctx.lineTo(1080, 1300); ctx.stroke();
+      fs(ctx, rr(560, 1380, 420, 34, 8), WARM.wood, 5); for (const x of [590, 930]) fs(ctx, rr(x, 1414, 24, 120, 4), WARM.woodD, 4);
+      if (dim) { ctx.fillStyle = 'rgba(40,25,45,.28)'; ctx.fillRect(0, 0, 1080, 1920); }
+      glow(ctx, 760, 300, 520, dim ? 0.25 : 0.45, '255,220,150');
+    };
+  },
   // warm memory plate (sepia flashback): soft cream with a vignette, no detail to compete with the characters
   gMemory() {
     return ctx => {
@@ -244,6 +288,21 @@ export const GRACE_PROPS = {
     fs(ctx, rr(220, -150, 34, 120, 10), '#b8b8b8', 4); fs(ctx, rr(160, -160, 94, 22, 8), '#b8b8b8', 4); // tap at the side, never over a face
     fs(ctx, rr(-330, -40, 660, 100, 34), '#f7f2ea', 6); fs(ctx, poly([[-90, 56], [90, 56], [60, 420], [-60, 420]]), '#f0e8db', 5);
   },
+  nameStone(ctx, {name = 'ADA', glow = 0} = {}) { // a grey stone with a name scratched on it; glow 0..1 as it turns to sand
+    const p = new Path2D(); p.moveTo(-90, 10); p.quadraticCurveTo(-100, -60, -20, -70); p.quadraticCurveTo(70, -80, 95, -10); p.quadraticCurveTo(110, 55, 20, 62); p.quadraticCurveTo(-80, 70, -90, 10); p.closePath();
+    fs(ctx, p, mix('#8c8f96', '#ffd98a', glow), 5); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fill(el(-30, -40, 30, 12, -0.3));
+    ctx.fillStyle = INK; ctx.font = '62px GraceCaption'; ctx.textAlign = 'center'; ctx.fillText(name, 4, 22); ctx.textAlign = 'left';
+    if (glow > 0) { const g = ctx.createRadialGradient(0, 0, 10, 0, 0, 260); g.addColorStop(0, `rgba(255,220,140,${0.6 * glow})`); g.addColorStop(1, 'rgba(255,220,140,0)'); ctx.fillStyle = g; ctx.fillRect(-260, -260, 520, 520); }
+  },
+  suitcase(ctx, {color = '#7a4a2a'} = {}) { fs(ctx, rr(-80, -110, 160, 120, 12), color, 5); fs(ctx, rr(-30, -140, 60, 34, 10), null, 5); ctx.strokeStyle = dark(color, 0.25); ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-50, -110); ctx.lineTo(-50, 10); ctx.moveTo(50, -110); ctx.lineTo(50, 10); ctx.stroke(); },
+  pie(ctx) { fs(ctx, el(0, 0, 90, 26), '#d9a066', 4); fs(ctx, el(0, -8, 80, 20), '#e8b878', 4); ctx.strokeStyle = '#b5552f'; ctx.lineWidth = 4; for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * 26 - 10, -22); ctx.lineTo(i * 26 + 10, 6); ctx.stroke(); } },
+  basket(ctx) { const p = new Path2D(); p.moveTo(-70, -30); p.lineTo(70, -30); p.lineTo(55, 40); p.lineTo(-55, 40); p.closePath(); fs(ctx, p, '#c48a4a', 4); ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, -30, 56, Math.PI, 0); ctx.stroke(); for (const [x, c] of [[-35, '#e2574c'], [0, '#f4b942'], [35, '#7c8f4a']]) fs(ctx, el(x, -38, 18, 16), c, 3); },
+  coins(ctx) { for (let i = 0; i < 3; i++) fs(ctx, el(i * 18 - 18, -i * 6, 16, 8), '#f4b942', 3); },
+  backpack(ctx, {color = '#3f6a7a'} = {}) { fs(ctx, rr(-60, -150, 120, 150, 30), color, 5); fs(ctx, rr(-44, -90, 88, 60, 14), dark(color, 0.15), 4); ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, -150, 28, Math.PI, 0); ctx.stroke(); },
+  lunchbox(ctx, {color = '#e2574c'} = {}) { fs(ctx, rr(-70, -60, 140, 70, 10), color, 5); fs(ctx, rr(-26, -78, 52, 22, 8), null, 5); ctx.strokeStyle = dark(color, 0.25); ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-70, -36); ctx.lineTo(70, -36); ctx.stroke(); },
+  sandwich(ctx) { fs(ctx, poly([[-50, 20], [50, 20], [0, -40]]), '#f2d6a0', 4); ctx.strokeStyle = '#7c8f4a'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-36, 6); ctx.lineTo(36, 6); ctx.stroke(); },
+  drawing(ctx) { fs(ctx, rr(-80, -100, 160, 120, 4), '#fffdf6', 4); ctx.fillStyle = WARM.gold; ctx.fill(el(40, -70, 18, 18)); ctx.strokeStyle = '#3f6a7a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-60, 0); ctx.lineTo(-20, -50); ctx.lineTo(20, 0); ctx.stroke(); fs(ctx, rr(-40, -20, 30, 20, 2), '#c4643a', 3); },
+  bike(ctx) { ctx.strokeStyle = INK; ctx.lineWidth = 7; for (const x of [-80, 80]) { ctx.beginPath(); ctx.arc(x, 0, 52, 0, 7); ctx.stroke(); } ctx.strokeStyle = '#c4643a'; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(-80, 0); ctx.lineTo(-10, -70); ctx.lineTo(80, 0); ctx.moveTo(-10, -70); ctx.lineTo(50, -70); ctx.lineTo(80, 0); ctx.stroke(); },
   pewFront(ctx, {w = 700} = {}) { fs(ctx, rr(-w / 2, 0, w, 140, 8), WARM.wood, 5); ctx.strokeStyle = dark(WARM.wood, 0.2); ctx.lineWidth = 4; for (let x = -w / 2 + 40; x < w / 2; x += 110) ctx.strokeRect(x, 24, 80, 92); },
   frame(ctx, {kind = 'brothers'} = {}) { // an old sepia photo of two boys
     fs(ctx, rr(-150, -190, 300, 380, 10), '#8a5a36', 8); fs(ctx, rr(-126, -166, 252, 332, 4), '#e9d3a8', 4);

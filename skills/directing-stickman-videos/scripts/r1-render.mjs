@@ -110,7 +110,9 @@ export function painter(tl) {
   function drawActor(a, t, shot) {
     const spec = tl.cast[a.char || a.id];
     if (!spec) throw new Error(`No cast entry for actor ${a.id} (char ${a.char})`);
-    const x = keyAt(a.keys, t, 'x', a.x), y = keyAt(a.keys, t, 'y', a.y), s = keyAt(a.keys, t, 's', a.s || 7);
+    const x = keyAt(a.keys, t, 'x', a.x), y = keyAt(a.keys, t, 'y', a.y);
+    let s = keyAt(a.keys, t, 's', a.s || 7);
+    if (tl.counter?.size) { const LG = a.ledger !== false ? tl.ledgers[a.ledger || a.id] : null; if (LG) s *= clamp(ledgerAt(LG, t).v / (a.natural || LG[0].v), 0.22, 1.4); } // the rule changes your height
     const L = a.ledger !== false ? tl.ledgers[a.ledger || a.id] : null;
     const led = L ? ledgerAt(L, t) : null;
     const sat = a.sat ?? (led && tl.counter?.sat !== false ? satFor(led.v) : 1);
@@ -128,13 +130,17 @@ export function painter(tl) {
     const packV = tl.counter?.pack && led && a.pack !== false && spec.kind !== 'baby' ? Math.max(0, led.v) : 0;
     const bend = a.bend ?? Math.min(1, packV / 40);
     if (bend > 0.01) w.scale(1, 1 - 0.1 * bend);
-    if (packV > 0) {
-      const M = bodyMetrics(spec), r = 6 + 2.7 * Math.sqrt(packV), cy = M.neckY + 6 - r * 0.55;
-      const sack = new Path2D(); sack.ellipse(0, cy, r * 1.05, r, 0, 0, Math.PI * 2);
-      w.fillStyle = '#9a7b55'; w.fill(sack); w.lineWidth = 0.8; w.strokeStyle = INK; w.stroke(sack);
-      const n = Math.min(14, Math.ceil(packV / 3));
-      for (let i = 0; i < n; i++) { const q = i * 2.39996, rr = r * 0.62 * Math.sqrt((i + 0.5) / n), st = new Path2D(); st.ellipse(Math.cos(q) * rr * 1.05, cy - Math.abs(Math.sin(q)) * rr * 0.9 - r * 0.15, 2.4, 1.9, q, 0, Math.PI * 2); w.fillStyle = '#8c8f96'; w.fill(st); w.lineWidth = 0.5; w.stroke(st); }
-      w.strokeStyle = '#6e4426'; w.lineWidth = 1.6; w.beginPath(); w.moveTo(-M.shoulderW * 0.3, M.neckY + 2); w.quadraticCurveTo(-M.shoulderW * 0.42, cy - r * 0.2, -r * 0.7, cy); w.moveTo(M.shoulderW * 0.3, M.neckY + 2); w.quadraticCurveTo(M.shoulderW * 0.42, cy - r * 0.2, r * 0.7, cy); w.stroke();
+    if (packV > 0) { // a burlap sack on the back: wider than the body when heavy, stones showing at the open neck
+      const M = bodyMetrics(spec), r = 5 + 2.9 * Math.sqrt(packV), rx = r * 1.15, ry = r * 1.0, cy = M.neckY + 16;
+      const sack = new Path2D();
+      sack.moveTo(-rx * 0.45, cy - ry * 0.95); sack.quadraticCurveTo(-rx * 1.05, cy - ry * 0.7, -rx, cy + ry * 0.1);
+      sack.quadraticCurveTo(-rx * 0.95, cy + ry * 1.0, 0, cy + ry * 1.0); sack.quadraticCurveTo(rx * 0.95, cy + ry * 1.0, rx, cy + ry * 0.1);
+      sack.quadraticCurveTo(rx * 1.05, cy - ry * 0.7, rx * 0.45, cy - ry * 0.95); sack.closePath();
+      w.fillStyle = '#a5845a'; w.fill(sack); w.lineWidth = 0.9; w.strokeStyle = INK; w.stroke(sack);
+      w.strokeStyle = 'rgba(60,40,20,.35)'; w.lineWidth = 0.5; for (let k = -2; k <= 2; k++) { w.beginPath(); w.moveTo(k * rx * 0.3, cy - ry * 0.6); w.quadraticCurveTo(k * rx * 0.36, cy, k * rx * 0.3, cy + ry * 0.8); w.stroke(); }
+      const n = Math.min(9, 2 + Math.ceil(packV / 6));
+      for (let k = 0; k < n; k++) { const q = n === 1 ? 0.5 : k / (n - 1), sx = (q - 0.5) * rx * 1.25, sy = cy - ry * 0.92 - Math.sin(q * Math.PI) * r * 0.25 - (k % 2) * 1.6, sr = 2.2 + Math.min(2.4, r * 0.09);
+        const st = new Path2D(); st.ellipse(sx, sy, sr * 1.25, sr, (k - n / 2) * 0.3, 0, Math.PI * 2); w.fillStyle = k % 2 ? '#9a9da4' : '#868990'; w.fill(st); w.lineWidth = 0.6; w.strokeStyle = INK; w.stroke(st); }
     }
     if (sat < 0.995) w.filter = `saturate(${sat.toFixed(3)}) brightness(${(0.9 + 0.1 * sat).toFixed(3)})`;
     let top;
@@ -261,10 +267,15 @@ export function painter(tl) {
         w.save(); w.translate(x, y); w.globalAlpha = 1 - q; const sc = 1.2 + hash(i) * 0.6; w.scale(sc, sc);
         if (f.type === 'hearts') PROPS.heart(w);
         else if (f.type === 'notes') PROPS.note(w);
-        else if (f.type === 'drain') { w.fillStyle = '#8d9097'; w.beginPath(); w.arc(0, 0, 10, 0, 7); w.fill(); }
+        else if (f.type === 'drain') { w.fillStyle = f.color || '#8d9097'; w.beginPath(); w.arc(0, 0, f.r || 10, 0, 7); w.fill(); }
         else { w.fillStyle = ['#ffd23f', '#ffffff', '#ff9f1c'][i % 3]; const st = new Path2D(); for (let k = 0; k < 8; k++) { const r = k % 2 ? 6 : 18, a = k * Math.PI / 4; st.lineTo(Math.cos(a) * r, Math.sin(a) * r); } st.closePath(); w.fill(st); }
         w.restore();
       }
+    }
+    if (f.type === 'stoneDrop') { // a stone falls into the actor's sack (rule: a grudge becomes a stone)
+      const A = find(f.actor), q = (t - f.t0) / 0.38; if (!A?._xy || q < 0 || q > 1.3) return;
+      const top = A._head[1] - (A._headR || 15) * A._s * 2.2, y = lerp(top - 420, A._head[1] + 10 * A._s, Math.min(1, q * q));
+      w.save(); w.translate(A._xy[0] + (f.dx || 0), y); w.rotate(q * 3); w.fillStyle = '#8c8f96'; w.beginPath(); w.ellipse(0, 0, 34, 26, 0, 0, 7); w.fill(); w.lineWidth = 5; w.strokeStyle = INK; w.stroke(); w.restore();
     }
     if (f.type === 'rain' && t < f.t1) {
       w.strokeStyle = 'rgba(190,210,255,.55)'; w.lineWidth = 4;
@@ -379,7 +390,11 @@ async function encode(tl, frame, a, b, target) {
 function mixAudio(tl, video, target) {
   const A = tl.audio, args = ['-v', 'error', '-y', '-i', video, '-i', A.voice];
   // voice-first mix: music, beds and effects form one bus that ducks under the narration (sidechain), then join the voice
-  const filters = [`[1:a]aresample=48000,aformat=channel_layouts=stereo,volume=${A.voiceGain ?? 1},asplit=2[v][vkey]`], buses = [];
+  // voiceLevel: long TTS takes drift quieter (measured −19 → −39 dB over 95 s on eleven_multilingual_v2); a slow dynamic
+  // normaliser (≈9 s window) levels the narration before the mix, and the levelled voice is what drives the ducking.
+  const level = A.voiceLevel ? ',dynaudnorm=f=300:g=31:p=0.9:m=40:s=0,loudnorm=I=-18:TP=-3:LRA=7' : '';
+  // apad: the voice is the mix's clock (amix duration=first) and the leveller eats its tail; pad so the mix covers the whole film
+  const filters = [`[1:a]aresample=48000,aformat=channel_layouts=stereo,apad=pad_dur=8${level},volume=${A.voiceGain ?? 1},asplit=2[v][vkey]`], buses = [];
   let n = 2;
   if (A.music) {
     args.push('-stream_loop', '-1', '-i', A.music.path);
@@ -400,7 +415,7 @@ function mixAudio(tl, video, target) {
   const duck = A.duck ?? {threshold: 0.025, ratio: 5, attack: 12, release: 280};
   filters.push(`${buses.join('')}amix=inputs=${buses.length}:normalize=0[bg]`);
   filters.push(`[bg][vkey]sidechaincompress=threshold=${duck.threshold}:ratio=${duck.ratio}:attack=${duck.attack}:release=${duck.release}:makeup=1[bgd]`);
-  filters.push(`[v][bgd]amix=inputs=2:normalize=0:duration=first,atrim=0:${tl.duration},loudnorm=I=${A.lufs ?? -14}:TP=-2.2:LRA=9,alimiter=limit=0.76:level=false[a]`);
+  filters.push(`[v][bgd]amix=inputs=2:normalize=0:duration=first,atrim=0:${tl.duration},loudnorm=I=${A.lufs ?? -14}:TP=-3:LRA=9,aresample=48000,alimiter=limit=0.7:level=false[a]`);
   args.push('-filter_complex', filters.join(';'), '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', '-t', String(tl.duration), target);
   const r = spawnSync('ffmpeg', args, {encoding: 'utf8', maxBuffer: 64 << 20});
   if (r.status !== 0) throw new Error(r.stderr.slice(-3000));
@@ -419,7 +434,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   fs.mkdirSync(out, {recursive: true});
   const tl = await loadTimeline(ep);
   const seconds = Number(opt('--seconds') || tl.duration), total = Math.ceil(Math.min(seconds, tl.duration) * tl.fps);
-  if (opt('--stills')) {
+  if (opt('--remix')) { // audio only: re-mix onto an existing silent render (DIR/video-silent.mp4)
+    mixAudio({...tl, duration: total / tl.fps}, path.join(out, 'video-silent.mp4'), path.join(out, opt('--name') || 'episodio.mp4'));
+    console.log('remix ok');
+  } else if (opt('--stills')) {
     const frame = painter(tl);
     for (const s of opt('--stills').split(',').map(Number)) fs.writeFileSync(path.join(out, `still-${s.toFixed(2)}.png`), frame(s).toBuffer('image/png'));
     console.log('stills ok');
