@@ -122,16 +122,16 @@ export function painter(tl) {
       pose: poseAt(a, t), expr: stepAt(a.expr, t, a.exprDefault || 'neutral'), talk: talkAt(a, t), blink: blinkAt(a, t),
       gaze: stepAt(a.gaze, t, tl.counter?.pack && led?.v >= 25 && a.bend !== 0 ? [0, 0.7] : [0, 0]), tilt: stepAt(a.tilt, t, 0) + Math.sin(t * 1.1 + hash(a.id) * 9) * 1.2 + (a.sway ? Math.sin(t * a.sway[0]) * a.sway[1] : 0),
       marks: tl.counter?.hands && led && a.marks !== false ? led.v : 0, gloves: stepAt(a.gloves, t, false), gloveColor: a.gloveColor,
-      walk, bob: walk != null ? -Math.abs(Math.sin(walk)) * 1.4 : a.hop ? -Math.abs(Math.sin(t * a.hop)) * 3 : Math.sin(t * 2.4 + hash(a.id) * 9) * 0.35,
+      sit: keyAt(a.keys, t, 'sit', a.sit ?? 0), walk, bob: walk != null ? -Math.abs(Math.sin(walk)) * 1.4 : a.hop ? -Math.abs(Math.sin(t * a.hop)) * 3 : Math.sin(t * 2.4 + hash(a.id) * 9) * 0.35,
     };
     const alpha = keyAt(a.keys, t, 'alpha', a.alpha ?? 1); if (alpha <= 0.001) { a._xy = null; return; }
     w.save(); w.globalAlpha = alpha; w.translate(x, y); w.scale(s * (a.flip ? -1 : 1), s);
     // a sack of the rule's stones on the back (tl.counter.pack): grows with the count; the carrier stoops
     const packV = tl.counter?.pack && led && a.pack !== false && spec.kind !== 'baby' ? Math.max(0, led.v) : 0;
     const bend = a.bend ?? Math.min(1, packV / 40);
-    if (bend > 0.01) w.scale(1, 1 - 0.1 * bend);
+    if (bend > 0.01) w.scale(1 + 0.04 * bend, 1 - 0.2 * bend); // a carrier stoops: shorter, a bit wider (front view)
     if (packV > 0) { // a burlap sack on the back: wider than the body when heavy, stones showing at the open neck
-      const M = bodyMetrics(spec), r = 5 + 2.9 * Math.sqrt(packV), rx = r * 1.15, ry = r * 1.0, cy = M.neckY + 16;
+      const M = bodyMetrics(spec), r = 8 + 2.6 * Math.sqrt(packV), rx = r * 1.15, ry = r * 1.0, cy = M.neckY + 9; // even 1–3 stones peek out at the shoulders
       const sack = new Path2D();
       sack.moveTo(-rx * 0.45, cy - ry * 0.95); sack.quadraticCurveTo(-rx * 1.05, cy - ry * 0.7, -rx, cy + ry * 0.1);
       sack.quadraticCurveTo(-rx * 0.95, cy + ry * 1.0, 0, cy + ry * 1.0); sack.quadraticCurveTo(rx * 0.95, cy + ry * 1.0, rx, cy + ry * 0.1);
@@ -147,11 +147,11 @@ export function painter(tl) {
     if (spec.kind === 'baby') { top = drawBaby(w, spec, st).headTop; }
     else {
       const r = drawCharacter(w, spec, {...st, armsFront: !!a.armsFront});
-      top = r.headTop;
+      top = r.headTop; a._hy = r.headY;
       a._arms = r; // arms drawn later when armsFront (over a hug partner)
     }
     w.filter = 'none'; w.restore();
-    a._alpha = alpha; a._top = [x, y + top * s]; a._headR = spec.kind === 'baby' ? 11 : bodyMetrics(spec).head; a._head = [x, y + (spec.kind === 'baby' ? -4 : bodyMetrics(spec).headY) * s]; a._s = s; a._sat = sat; a._led = led; a._xy = [x, y]; a._st = st; a._spec = spec;
+    a._alpha = alpha; a._top = [x, y + top * s]; a._headR = spec.kind === 'baby' ? 11 : bodyMetrics(spec).head; a._head = [x, y + (spec.kind === 'baby' ? -4 : a._hy ?? bodyMetrics(spec).headY) * s]; a._s = s; a._sat = sat; a._led = led; a._xy = [x, y]; a._st = st; a._spec = spec;
   }
   function drawFrontArms(a) {
     if (!a.armsFront || !a._arms) return;
@@ -165,7 +165,7 @@ export function painter(tl) {
   const SAFE_TOP = 400, SAFE_X = 24;
   const toScreen = (cam, [x, y]) => [(x - cam.x) * cam.z + W / 2, (y - cam.y) * cam.z + H / 2];
   function counter(a, t, cam, placed) {
-    if (!a._led || a.counter === false || t < (a.counterT0 ?? -1)) return;
+    if (!a._led || a.counter === false || t < (a.counterT0 ?? -1) || t >= (a.counterT1 ?? 1e9)) return;
     const {v, changeT, delta} = a._led;
     const cs = clamp((a.counterScale || 1) * Math.max(0.8, Math.min(1.25, a._s / 7)) * Math.sqrt(cam.z), 0.75, 1.6);
     const pw = 236, ph = 84, hw = pw / 2 * cs, hh = ph / 2 * cs;
@@ -235,7 +235,7 @@ export function painter(tl) {
     for (const rc of placed) if (bx < rc[0] + rc[2] && bx + bw > rc[0] - rc[2] && by < rc[1] + rc[3] && by + bh > rc[1] - rc[3]) by = Math.min(H - 200 - bh, rc[1] + rc[3] + 12);
     o.save(); o.translate(mx, my); o.scale(k, k); o.translate(-mx, -my);
     const p = new Path2D(); p.roundRect(bx, by, bw, bh, 26);
-    const tail = new Path2D(); const tx = clamp(mx, bx + 40, bx + bw - 40); tail.moveTo(tx - 22, by + bh - 4); tail.lineTo(tx + 22, by + bh - 4); tail.lineTo(mx + (side === 'right' ? r * 0.5 : -r * 0.5), my - r * 0.25); tail.closePath();
+    const tail = new Path2D(); const tx = clamp(mx, bx + 40, bx + bw - 40); tail.moveTo(tx - 22, by + bh - 4); tail.lineTo(tx + 22, by + bh - 4); if (side === 'above') tail.lineTo(mx + r * 0.15, my - r * 1.6); else tail.lineTo(mx + (side === 'right' ? r * 0.5 : -r * 0.5), my - r * 0.25); tail.closePath(); // 'above': point at the top of the head, never across the face
     o.lineWidth = 10; o.strokeStyle = INK; o.lineJoin = 'round'; o.stroke(p); o.stroke(tail);
     o.fillStyle = b.fill || '#ffffff'; o.fill(p); o.fill(tail);
     o.fillStyle = INK; o.textAlign = 'center'; o.textBaseline = 'middle';
@@ -348,7 +348,7 @@ export function painter(tl) {
     o.drawImage(world, 0, 0);
     o.filter = 'none';
     if (shot.vignette) { const g = o.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.75); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(20,10,0,${shot.vignette})`); o.fillStyle = g; o.fillRect(0, 0, W, H); }
-    if (shot.tint) { o.fillStyle = shot.tint; o.fillRect(0, 0, W, H); }
+    if (shot.tint) { o.fillStyle = typeof shot.tint === 'function' ? shot.tint(t) : shot.tint; o.fillRect(0, 0, W, H); } // a function = light changing inside the shot (no plate swap, which reads as a cut)
     if (tl.look?.tint) { o.fillStyle = tl.look.tint; o.fillRect(0, 0, W, H); }
     if (tl.look?.vignette) { const g = o.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.8); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(60,25,5,${tl.look.vignette})`); o.fillStyle = g; o.fillRect(0, 0, W, H); }
     if (shot.flash) { const q = (t - shot.flash) / 0.25; if (q >= 0 && q < 1) { o.fillStyle = `rgba(255,255,255,${(1 - q) * 0.85})`; o.fillRect(0, 0, W, H); } }
@@ -398,7 +398,7 @@ function mixAudio(tl, video, target) {
   let n = 2;
   if (A.music) {
     args.push('-stream_loop', '-1', '-i', A.music.path);
-    filters.push(`[${n}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${tl.duration},volume=${A.music.gain},afade=t=in:d=0.4,afade=t=out:st=${tl.duration - 2.5}:d=2.5[m]`);
+    filters.push(`[${n}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${tl.duration},volume=${A.music.gain},afade=t=in:d=0.4,afade=t=out:st=${tl.duration - 1.0}:d=1.0[m]`);
     buses.push('[m]'); n++;
   }
   for (const b of A.beds || []) {

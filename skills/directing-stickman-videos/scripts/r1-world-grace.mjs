@@ -238,16 +238,45 @@ export const GRACE_SETS = {
     };
   },
   // behind the gym: a long plank wall in shade, a bench, a drainpipe; quiet and a little dim
-  gGym({dim = true} = {}) {
+  gGym({dim = true, bench = true} = {}) {
     return ctx => {
       ctx.fillStyle = '#c99a6b'; ctx.fillRect(0, 0, 1080, 1920);
       ctx.strokeStyle = dark('#c99a6b', 0.18); ctx.lineWidth = 4; for (let x = 0; x < 1080; x += 72) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1300); ctx.stroke(); }
       fs(ctx, rr(860, 0, 34, 1300, 6), '#8a8f96', 4);
       fs(ctx, rr(120, 380, 260, 180, 8), '#fbf1dc', 5); fs(ctx, rr(134, 394, 232, 152, 3), '#6a8aa0', 3);
       ctx.fillStyle = '#9c7a52'; ctx.fillRect(0, 1300, 1080, 620); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, 1300); ctx.lineTo(1080, 1300); ctx.stroke();
-      fs(ctx, rr(560, 1380, 420, 34, 8), WARM.wood, 5); for (const x of [590, 930]) fs(ctx, rr(x, 1414, 24, 120, 4), WARM.woodD, 4);
+      if (bench) { fs(ctx, rr(560, 1380, 420, 34, 8), WARM.wood, 5); for (const x of [590, 930]) fs(ctx, rr(x, 1414, 24, 120, 4), WARM.woodD, 4); }
       if (dim) { ctx.fillStyle = 'rgba(40,25,45,.28)'; ctx.fillRect(0, 0, 1080, 1920); }
       glow(ctx, 760, 300, 520, dim ? 0.25 : 0.45, '255,220,150');
+    };
+  },
+  // the city gate: limestone wall, a huge arched double gate under a "1000" plaque, torches; open 0..1 lets the light out.
+  // time: night | dawn | shade (the wall's shadow) | day
+  gGate({time = 'day', open = 0} = {}) {
+    return ctx => {
+      sky(ctx, time === 'shade' ? 'gold' : time);
+      fs(ctx, rr(-20, 360, 1120, 960, 0), '#e2c79a', 6);
+      ctx.strokeStyle = dark('#e2c79a', 0.14); ctx.lineWidth = 4; for (let y = 420; y < 1300; y += 70) for (let x = (y / 70 % 2) * 60 - 60; x < 1100; x += 120) ctx.strokeRect(x, y, 120, 70);
+      for (let x = -20; x < 1100; x += 120) fs(ctx, rr(x, 320, 70, 50, 2), '#e2c79a', 5);
+      const arch = new Path2D(); arch.moveTo(250, 1300); arch.lineTo(250, 700); arch.arc(540, 700, 290, Math.PI, 0); arch.lineTo(830, 1300); arch.closePath();
+      fs(ctx, arch, '#fff3cf', 8);
+      const g = ctx.createRadialGradient(540, 900, 40, 540, 900, 520); g.addColorStop(0, '#fffbe8'); g.addColorStop(1, '#ffd98a'); ctx.save(); ctx.clip(arch); ctx.fillStyle = g; ctx.fillRect(250, 400, 580, 900);
+      olive(ctx, 420, 1300, 0.8); olive(ctx, 690, 1300, 0.7); ctx.restore();
+      const leaf = 290 * (1 - open * 0.92);
+      if (leaf > 2) for (const side of [-1, 1]) {
+        ctx.save(); ctx.clip(arch); const x0 = side < 0 ? 250 : 830 - leaf;
+        fs(ctx, rr(x0, 400, leaf, 900, 0), '#7a4a2a', 6); ctx.strokeStyle = dark('#7a4a2a', 0.25); ctx.lineWidth = 6;
+        for (let k = 1; k < 5; k++) { ctx.beginPath(); ctx.moveTo(x0 + leaf * k / 5, 420); ctx.lineTo(x0 + leaf * k / 5, 1300); ctx.stroke(); }
+        for (const y of [700, 1050]) fs(ctx, rr(x0 + 8, y, Math.max(0, leaf - 16), 30, 4), '#3c2c24', 3);
+        ctx.restore();
+      }
+      fs(ctx, rr(420, 300, 240, 110, 12), '#c9a46a', 6); ctx.fillStyle = INK; ctx.font = '96px GraceCaption'; ctx.textAlign = 'center'; ctx.fillText('1000', 540, 392); ctx.textAlign = 'left';
+      for (const x of [170, 910]) { fs(ctx, rr(x - 10, 760, 20, 120, 4), '#3c2c24', 3); fs(ctx, el(x, 740, 22, 34), '#ffb347', 4); if (time !== 'day') glow(ctx, x, 740, 260, 0.6, '255,170,70'); }
+      cobbles(ctx, 1300, '#dcc29a', time === 'night');
+      if (time === 'night') { ctx.fillStyle = 'rgba(30,18,52,.55)'; ctx.fillRect(0, 0, 1080, 1920); for (const x of [170, 910]) glow(ctx, x, 740, 300, 0.55, '255,170,70'); }
+      if (time === 'dawn') { ctx.fillStyle = 'rgba(60,40,90,.35)'; ctx.fillRect(0, 0, 1080, 1920); }
+      if (time === 'shade') { ctx.fillStyle = 'rgba(40,25,50,.42)'; ctx.fillRect(0, 300, 1080, 1620); }
+      if (open > 0) { ctx.save(); ctx.clip(arch); glow(ctx, 540, 900, 700, 0.6 * open, '255,245,215'); ctx.restore(); ctx.fillStyle = `rgba(255,240,200,${0.35 * open})`; ctx.fill(poly([[250 + 290 * (1 - open), 1300], [830 - 290 * (1 - open), 1300], [1080, 1920], [0, 1920]])); }
     };
   },
   // warm memory plate (sepia flashback): soft cream with a vignette, no detail to compete with the characters
@@ -299,10 +328,15 @@ export const GRACE_PROPS = {
   basket(ctx) { const p = new Path2D(); p.moveTo(-70, -30); p.lineTo(70, -30); p.lineTo(55, 40); p.lineTo(-55, 40); p.closePath(); fs(ctx, p, '#c48a4a', 4); ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, -30, 56, Math.PI, 0); ctx.stroke(); for (const [x, c] of [[-35, '#e2574c'], [0, '#f4b942'], [35, '#7c8f4a']]) fs(ctx, el(x, -38, 18, 16), c, 3); },
   coins(ctx) { for (let i = 0; i < 3; i++) fs(ctx, el(i * 18 - 18, -i * 6, 16, 8), '#f4b942', 3); },
   backpack(ctx, {color = '#3f6a7a'} = {}) { fs(ctx, rr(-60, -150, 120, 150, 30), color, 5); fs(ctx, rr(-44, -90, 88, 60, 14), dark(color, 0.15), 4); ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, -150, 28, Math.PI, 0); ctx.stroke(); },
+  benchG(ctx, {w = 560, h = 120} = {}) { fs(ctx, rr(-w / 2, -h, w, 26, 8), WARM.wood, 5); for (const x of [-w / 2 + 34, w / 2 - 58]) fs(ctx, rr(x, -h + 26, 24, h - 26, 4), WARM.woodD, 4); }, // a plain bench; seat top at y = -h
   lunchbox(ctx, {color = '#e2574c'} = {}) { fs(ctx, rr(-70, -60, 140, 70, 10), color, 5); fs(ctx, rr(-26, -78, 52, 22, 8), null, 5); ctx.strokeStyle = dark(color, 0.25); ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-70, -36); ctx.lineTo(70, -36); ctx.stroke(); },
   sandwich(ctx) { fs(ctx, poly([[-50, 20], [50, 20], [0, -40]]), '#f2d6a0', 4); ctx.strokeStyle = '#7c8f4a'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-36, 6); ctx.lineTo(36, 6); ctx.stroke(); },
   drawing(ctx) { fs(ctx, rr(-80, -100, 160, 120, 4), '#fffdf6', 4); ctx.fillStyle = WARM.gold; ctx.fill(el(40, -70, 18, 18)); ctx.strokeStyle = '#3f6a7a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-60, 0); ctx.lineTo(-20, -50); ctx.lineTo(20, 0); ctx.stroke(); fs(ctx, rr(-40, -20, 30, 20, 2), '#c4643a', 3); },
   bike(ctx) { ctx.strokeStyle = INK; ctx.lineWidth = 7; for (const x of [-80, 80]) { ctx.beginPath(); ctx.arc(x, 0, 52, 0, 7); ctx.stroke(); } ctx.strokeStyle = '#c4643a'; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(-80, 0); ctx.lineTo(-10, -70); ctx.lineTo(80, 0); ctx.moveTo(-10, -70); ctx.lineTo(50, -70); ctx.lineTo(80, 0); ctx.stroke(); },
+  well(ctx) { fs(ctx, el(0, 0, 130, 40), '#c9b08a', 5); fs(ctx, rr(-130, 0, 260, 150, 6), WARM.stone, 6); ctx.strokeStyle = dark(WARM.stone, 0.2); ctx.lineWidth = 4; for (let y = 40; y < 150; y += 40) { ctx.beginPath(); ctx.moveTo(-130, y); ctx.lineTo(130, y); ctx.stroke(); } fs(ctx, el(0, 0, 110, 28), '#3a5a6a', 4); for (const x of [-110, 100]) fs(ctx, rr(x, -220, 14, 220, 3), WARM.wood, 4); fs(ctx, poly([[-150, -210], [150, -210], [0, -300]]), WARM.roof, 5); },
+  cookieJar(ctx, {cookie = true} = {}) { fs(ctx, rr(-60, -120, 120, 130, 30), 'rgba(220,240,245,.85)', 5); fs(ctx, rr(-50, -140, 100, 26, 8), '#c4643a', 4); if (cookie) fs(ctx, el(0, -30, 30, 26), '#c48a4a', 4); },
+  ladder(ctx) { for (const x of [-50, 50]) fs(ctx, rr(x - 8, -520, 16, 520, 4), WARM.wood, 4); for (let y = -480; y < 0; y += 80) fs(ctx, rr(-50, y, 100, 12, 3), WARM.woodD, 3); },
+  notebook(ctx) { fs(ctx, rr(-60, -80, 120, 160, 6), '#fbf1dc', 4); ctx.strokeStyle = INK; ctx.lineWidth = 3; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(-40 + i * 14, -50); ctx.lineTo(-40 + i * 14, -10); ctx.stroke(); } ctx.beginPath(); ctx.moveTo(-46, -20); ctx.lineTo(36, -40); ctx.stroke(); },
   pewFront(ctx, {w = 700} = {}) { fs(ctx, rr(-w / 2, 0, w, 140, 8), WARM.wood, 5); ctx.strokeStyle = dark(WARM.wood, 0.2); ctx.lineWidth = 4; for (let x = -w / 2 + 40; x < w / 2; x += 110) ctx.strokeRect(x, 24, 80, 92); },
   frame(ctx, {kind = 'brothers'} = {}) { // an old sepia photo of two boys
     fs(ctx, rr(-150, -190, 300, 380, 10), '#8a5a36', 8); fs(ctx, rr(-126, -166, 252, 332, 4), '#e9d3a8', 4);

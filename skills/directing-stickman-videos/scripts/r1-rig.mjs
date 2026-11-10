@@ -102,9 +102,11 @@ export function drawCharacter(ctx, spec, st = {}) {
   const walk = st.walk;
   const legA = walk == null ? [0, 0] : [Math.sin(walk) * 16, -Math.sin(walk) * 16];
   const legX = P.hw * 0.26;
+  const sit = st.sit || 0, drop = P.leg * 0.45 * sit; // seated, front view: hips sink, thighs come at the camera, shins hang
   [-1, 1].forEach((sg, i) => {
-    ctx.save(); ctx.translate(sg * legX, hipY); ctx.rotate(rad(legA[i] + (st.legSpread || 0) * sg));
-    const L = P.leg - 3;
+    ctx.save(); ctx.translate(sg * legX * (1 + 0.5 * sit), hipY + drop); ctx.rotate(rad(legA[i] + (st.legSpread || 0) * sg));
+    const L = P.leg - 3 - drop;
+    if (sit > 0.05) fillStroke(ctx, rrect(-P.legW * 0.62, -3, P.legW * 1.24, P.legW * 1.1 * sit, 3), spec.outfit?.type === 'dress' ? (spec.outfit.color2 || spec.skin) : (spec.pants || '#3b4a6b')); // the thigh, foreshortened
     if (spec.outfit?.type === 'dress' || spec.legsBare) fillStroke(ctx, rrect(-P.legW * 0.28, 0, P.legW * 0.56, L, 2), spec.skin);
     else fillStroke(ctx, rrect(-P.legW / 2, -2, P.legW, L + 1, 2.5), spec.pants || '#3b4a6b');
     // shoe
@@ -112,6 +114,7 @@ export function drawCharacter(ctx, spec, st = {}) {
     fillStroke(ctx, (() => { const p = new P2D(); p.ellipse(sg * 1.6, 0.6, P.legW * 0.62, 2.6, 0, 0, Math.PI * 2); return p; })(), spec.shoes || '#2c2c34');
     ctx.restore(); ctx.restore();
   });
+  ctx.translate(0, drop);
   // torso
   const o = spec.outfit || {type: 'shirt', color: '#3d5a99'};
   const torsoTop = shY - 2, torsoH = hipY - torsoTop + 2;
@@ -201,7 +204,7 @@ export function drawCharacter(ctx, spec, st = {}) {
   drawHead(ctx, spec, P.head, st);
   ctx.restore();
   ctx.restore();
-  return {arms, drawArm, headTop: headY - P.head * 1.15 + bob, headY: headY + bob, height: -headY + P.head};
+  return {arms, drawArm, headTop: headY - P.head * 1.15 + bob + drop, headY: headY + bob + drop, height: -headY + P.head - drop};
 }
 
 export function bodyMetrics(spec) {
