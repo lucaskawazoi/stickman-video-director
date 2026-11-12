@@ -13,13 +13,13 @@ const hashN = n => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math
 
 export const WARM = {plaster: ['#f1d9b5', '#e9c38f', '#f4e4c8', '#e7b98a', '#f0cfa0'], roof: '#c4643a', stone: '#d8c3a0', wood: '#8a5a36', woodD: '#6e4426',
   olive: '#7c8f4a', oliveD: '#5f7339', cream: '#fbf1dc', gold: '#f4b942', ink: INK};
-const SKY = {gold: ['#f3b66c', '#ffe3b0'], noon: ['#f8d48f', '#fff2d2'], dusk: ['#a8505a', '#f09a62'], night: ['#251b38', '#45305a'], dawn: ['#f0ad88', '#fde2bf']};
-const SHADE = {night: 'rgba(30,18,52,.46)', dusk: 'rgba(120,40,40,.16)', dawn: 'rgba(255,160,110,.10)'};
+const SKY = {moon: ['#4f6090', '#97a3c6'], gold: ['#f3b66c', '#ffe3b0'], noon: ['#f8d48f', '#fff2d2'], dusk: ['#a8505a', '#f09a62'], night: ['#251b38', '#45305a'], dawn: ['#f0ad88', '#fde2bf']};
+const SHADE = {moon: 'rgba(30,30,70,.12)', night: 'rgba(30,18,52,.46)', dusk: 'rgba(120,40,40,.16)', dawn: 'rgba(255,160,110,.10)'};
 
 function sky(ctx, time, h = 1300) {
   const [a, b] = SKY[time] || SKY.gold, g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, a); g.addColorStop(1, b);
   ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920);
-  if (time === 'night') { ctx.fillStyle = '#fff1c4'; ctx.fill(el(820, 210, 54, 54)); ctx.fillStyle = '#fff'; for (const [x, y] of [[110, 140], [290, 250], [520, 110], [690, 320], [990, 400], [400, 380]]) ctx.fill(el(x, y, 4, 4)); }
+  if (time === 'night' || time === 'moon') { ctx.fillStyle = '#fff1c4'; ctx.fill(el(820, 210, 54, 54)); ctx.fillStyle = '#fff'; for (const [x, y] of [[110, 140], [290, 250], [520, 110], [690, 320], [990, 400], [400, 380]]) ctx.fill(el(x, y, 4, 4)); }
   else if (time === 'dusk') { ctx.fillStyle = 'rgba(255,214,140,.9)'; ctx.fill(el(300, 700, 120, 120)); }
   else { ctx.fillStyle = 'rgba(255,248,220,.9)'; ctx.fill(el(840, 250, 92, 92)); ctx.fillStyle = 'rgba(255,240,200,.25)'; ctx.fill(el(840, 250, 170, 170)); }
 }
@@ -216,7 +216,7 @@ export const GRACE_SETS = {
       const path = new Path2D(); path.moveTo(760, 560); path.quadraticCurveTo(420, 900, 640, 1250); path.quadraticCurveTo(820, 1560, 300, 1920); path.lineTo(860, 1920); path.quadraticCurveTo(1000, 1500, 820, 1250); path.quadraticCurveTo(620, 900, 830, 560); path.closePath(); fs(ctx, path, '#ecd6ad', 5);
       ctx.strokeStyle = dark('#ecd6ad', 0.12); ctx.lineWidth = 3; for (let i = 0; i < 16; i++) { const y = 620 + i * i * 5.2; ctx.beginPath(); ctx.ellipse(700 + Math.sin(i) * 80, y, 30 + i * 4, 6 + i, 0, 0, Math.PI * 2); ctx.stroke(); }
       olive(ctx, 150, 1180, 1.15); olive(ctx, 1000, 1000, 0.8); olive(ctx, 330, 820, 0.55);
-      fs(ctx, rr(120, 1500, 230, 60, 24), WARM.stone, 5);
+
       if (SHADE[time]) { ctx.fillStyle = SHADE[time]; ctx.fillRect(0, 0, 1080, 1920); }
     };
   },
@@ -285,7 +285,7 @@ export const GRACE_SETS = {
   gHarbor({time = 'dusk', dock = 'full'} = {}) { // dock: 'full' | 'left' (sea in the right foreground, for a moored boat)
     return ctx => {
       sky(ctx, time);
-      const night = time === 'night', g = ctx.createLinearGradient(0, 980, 0, 1300);
+      const night = time === 'night' || time === 'moon', g = ctx.createLinearGradient(0, 980, 0, 1300);
       g.addColorStop(0, night ? '#1f2e48' : time === 'dusk' ? '#6a6d8a' : '#5f97a8'); g.addColorStop(1, night ? '#2c4460' : time === 'dusk' ? '#8a7e94' : '#7fb2b8');
       ctx.fillStyle = g; ctx.fillRect(0, 980, 1080, 330);
       ctx.strokeStyle = night ? 'rgba(160,190,230,.25)' : 'rgba(255,255,255,.35)'; ctx.lineWidth = 4;
@@ -304,14 +304,14 @@ export const GRACE_SETS = {
     };
   },
   // the open sea at night; fog 0..1 hides the stars and the horizon
-  gSea({fog = 0.7} = {}) {
+  gSea({fog = 0.7, light = 0} = {}) { // light 0 = night, 1 = a grey daytime fog
     return ctx => {
-      const g = ctx.createLinearGradient(0, 0, 0, 1100); g.addColorStop(0, '#141a2a'); g.addColorStop(1, '#2b3448'); ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920);
+      const g = ctx.createLinearGradient(0, 0, 0, 1100); g.addColorStop(0, mix('#141a2a', '#c3cad3', light)); g.addColorStop(1, mix('#2b3448', '#e4e7ea', light)); ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920);
       if (fog < 0.3) { ctx.fillStyle = '#fff'; for (const [x, y] of [[110, 140], [290, 250], [520, 110], [690, 320], [990, 400], [400, 380]]) ctx.fill(el(x, y, 4, 4)); }
-      const w = ctx.createLinearGradient(0, 1080, 0, 1920); w.addColorStop(0, '#1c2a3c'); w.addColorStop(1, '#0d1520'); ctx.fillStyle = w; ctx.fillRect(0, 1080, 1080, 840);
+      const w = ctx.createLinearGradient(0, 1080, 0, 1920); w.addColorStop(0, mix('#1c2a3c', '#8e9ba8', light)); w.addColorStop(1, mix('#0d1520', '#5f6e7c', light)); ctx.fillStyle = w; ctx.fillRect(0, 1080, 1080, 840);
       ctx.strokeStyle = 'rgba(150,180,220,.16)'; ctx.lineWidth = 4;
       for (let y = 1120; y < 1920; y += 70) for (let x = (y * 3) % 200 - 100; x < 1080; x += 230) { ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 40, y - 12, x + 80, y); ctx.stroke(); }
-      for (let i = 0; i < 7; i++) { const y = 860 + i * 110, a = 0.14 * fog; const f = ctx.createLinearGradient(0, y - 120, 0, y + 120); f.addColorStop(0, 'rgba(200,210,225,0)'); f.addColorStop(0.5, `rgba(200,210,225,${a})`); f.addColorStop(1, 'rgba(200,210,225,0)'); ctx.fillStyle = f; ctx.fillRect(0, y - 120, 1080, 240); }
+      for (let i = 0; i < 7; i++) { const y = 860 + i * 110, a = (0.14 + 0.2 * light) * fog; const f = ctx.createLinearGradient(0, y - 120, 0, y + 120); f.addColorStop(0, 'rgba(200,210,225,0)'); f.addColorStop(0.5, `rgba(200,210,225,${a})`); f.addColorStop(1, 'rgba(200,210,225,0)'); ctx.fillStyle = f; ctx.fillRect(0, y - 120, 1080, 240); }
     };
   },
   gMemory() {

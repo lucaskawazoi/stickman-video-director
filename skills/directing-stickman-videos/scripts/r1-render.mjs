@@ -181,6 +181,12 @@ export function painter(tl) {
       for (const g of heads) if (hit(rc, g, 0.6)) add('bubble-on-face', b.actor, g.a.id);
       const dt = q => Math.hypot(q.hx - L.tip[0], q.hy - L.tip[1]), near = heads.reduce((m, q) => !m || dt(q) < dt(m) ? q : m, null);
       if (near && near.a.id !== b.actor) add('bubble-tail-other', b.actor, near.a.id); }
+    for (const h of heads) for (const [k, hp] of Object.entries(h.a._hands || {})) { // a hand on someone else's face reads as a blow
+      const [sx, sy] = toScreen(cam, hp);
+      for (const g of heads) if (g !== h && Math.hypot(g.hx - sx, g.hy - sy) < g.r * 1.45) add('hand-on-face', h.a.id + '.' + k, g.a.id); }
+    for (const ti of shot.titles || []) { if (t < ti.t0 || t >= (ti.t1 ?? 1e9)) continue; // approximate box: full card width, lines × line height
+      const n = String(ti.text).split('\n').length, hh = n * (ti.size || 60) * (ti.lh || 1.15) / 2 + (ti.card ? 40 : 6);
+      for (const g of heads) if (hit([W / 2, ti.y, ti.card ? 470 : 380, hh], g, 0.6)) add('title-on-face', 'title', g.a.id); }
   }
   function counter(a, t, cam, placed) {
     if (!a._led || a.counter === false || t < (a.counterT0 ?? -1) || t >= (a.counterT1 ?? 1e9)) return;
@@ -227,7 +233,7 @@ export function painter(tl) {
     o.fillStyle = col; o.shadowColor = col; o.shadowBlur = 14; o.fillText(String(v), pw / 2 - 18, 3); o.shadowBlur = 0; o.textAlign = 'left';
     o.restore();
     const q = (t - changeT) / 0.95;
-    if (delta && q >= 0 && q < 1 && !a.noDelta) {
+    if (delta && q >= 0 && q < 1 && !a.noDelta && changeT >= (a._shotStart ?? -9) - 0.05) {
       o.save(); o.globalAlpha = 1 - q * q; o.translate(cx + hw * 0.55, Math.max(SAFE_TOP - 20, cy - hh - 18 * cs - q * 70 * cs)); o.scale(cs, cs);
       o.font = `60px ${tl.captionFont || 'R1Caption'}`; o.textAlign = 'center'; o.lineWidth = 10; o.strokeStyle = INK; o.lineJoin = 'round';
       const txt = (delta > 0 ? '+' : '') + delta, good = (tl.counter?.bad === 'up') ? delta < 0 : delta > 0;
@@ -375,7 +381,7 @@ export function painter(tl) {
     if (shot.flash) { const q = (t - shot.flash) / 0.25; if (q >= 0 && q < 1) { o.fillStyle = `rgba(255,255,255,${(1 - q) * 0.85})`; o.fillRect(0, 0, W, H); } }
     const placed = []; for (const a of actors) a._ctr = null;
     const hidden = (shot.hideCounters || []).some(([a, b]) => t >= a && t < b);
-    if (!hidden) for (const a of actors) if (a._xy) counter(a, t, cam, placed);
+    if (!hidden) for (const a of actors) if (a._xy) { a._shotStart = shot.start; counter(a, t, cam, placed); }
     for (const pc of shot.plates || []) if (t >= pc.t0 && t < (pc.t1 ?? 1e9)) counter({_led: {v: pc.v, changeT: -9, delta: 0}, _top: [pc.x, pc.y], _head: [pc.x, pc.y + 40], _s: 7, counterScale: pc.scale || 1}, t, cam, placed);
     for (const b of shot.bubbles || []) bubble(b, t, actors, cam, placed);
     if (tl._lint) lintFrame(shot, t, cam, actors);
