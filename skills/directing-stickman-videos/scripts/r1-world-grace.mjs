@@ -280,6 +280,40 @@ export const GRACE_SETS = {
     };
   },
   // warm memory plate (sepia flashback): soft cream with a vignette, no detail to compete with the characters
+  // the harbor: sea and breakwater with a small lighthouse, a plank dock in front (characters stand on it), bollards.
+  // time: gold | dusk | night
+  gHarbor({time = 'dusk', dock = 'full'} = {}) { // dock: 'full' | 'left' (sea in the right foreground, for a moored boat)
+    return ctx => {
+      sky(ctx, time);
+      const night = time === 'night', g = ctx.createLinearGradient(0, 980, 0, 1300);
+      g.addColorStop(0, night ? '#1f2e48' : time === 'dusk' ? '#6a6d8a' : '#5f97a8'); g.addColorStop(1, night ? '#2c4460' : time === 'dusk' ? '#8a7e94' : '#7fb2b8');
+      ctx.fillStyle = g; ctx.fillRect(0, 980, 1080, 330);
+      ctx.strokeStyle = night ? 'rgba(160,190,230,.25)' : 'rgba(255,255,255,.35)'; ctx.lineWidth = 4;
+      for (let y = 1010; y < 1290; y += 46) for (let x = (y * 7) % 160 - 80; x < 1080; x += 190) { ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 30, y - 10, x + 60, y); ctx.stroke(); }
+      fs(ctx, poly([[560, 990], [1080, 975], [1080, 1010], [560, 1012]]), WARM.stone, 4);
+      fs(ctx, rr(930, 840, 46, 150, 4), WARM.cream, 4); fs(ctx, poly([[922, 842], [984, 842], [953, 800]]), WARM.roof, 4);
+      fs(ctx, rr(936, 862, 34, 26, 3), night || time === 'dusk' ? '#ffe9a8' : '#9cc3cf', 3);
+      if (night || time === 'dusk') glow(ctx, 953, 875, 160, 0.5);
+      const DW = dock === 'left' ? 560 : 1080;
+      if (DW < 1080) { const g2 = ctx.createLinearGradient(0, 1300, 0, 1920); g2.addColorStop(0, night ? '#2c4460' : '#7fb2b8'); g2.addColorStop(1, night ? '#16263a' : '#4f8798'); ctx.fillStyle = g2; ctx.fillRect(DW, 1300, 1080 - DW, 620); }
+      ctx.fillStyle = '#9c7a52'; ctx.fillRect(0, 1300, DW, 620); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, 1300); ctx.lineTo(DW, 1300); if (DW < 1080) ctx.lineTo(DW, 1920); ctx.stroke();
+      ctx.strokeStyle = dark('#9c7a52', 0.18); ctx.lineWidth = 3; for (let y = 1360; y < 1920; y += 64) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(DW, y); ctx.stroke(); }
+      for (let y = 1300, k = 0; y < 1920; y += 64, k++) for (let x = (k % 2) * 140 + 60; x < DW; x += 280) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 64); ctx.stroke(); }
+      for (const x of DW < 1080 ? [70, DW - 30] : [70, 1010]) { fs(ctx, rr(x - 26, 1250, 52, 90, 10), '#5a4a3a', 4); fs(ctx, el(x, 1252, 30, 10), '#6a5a48', 4); }
+      if (SHADE[time]) { ctx.fillStyle = SHADE[time]; ctx.fillRect(0, 0, 1080, 1920); }
+    };
+  },
+  // the open sea at night; fog 0..1 hides the stars and the horizon
+  gSea({fog = 0.7} = {}) {
+    return ctx => {
+      const g = ctx.createLinearGradient(0, 0, 0, 1100); g.addColorStop(0, '#141a2a'); g.addColorStop(1, '#2b3448'); ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920);
+      if (fog < 0.3) { ctx.fillStyle = '#fff'; for (const [x, y] of [[110, 140], [290, 250], [520, 110], [690, 320], [990, 400], [400, 380]]) ctx.fill(el(x, y, 4, 4)); }
+      const w = ctx.createLinearGradient(0, 1080, 0, 1920); w.addColorStop(0, '#1c2a3c'); w.addColorStop(1, '#0d1520'); ctx.fillStyle = w; ctx.fillRect(0, 1080, 1080, 840);
+      ctx.strokeStyle = 'rgba(150,180,220,.16)'; ctx.lineWidth = 4;
+      for (let y = 1120; y < 1920; y += 70) for (let x = (y * 3) % 200 - 100; x < 1080; x += 230) { ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 40, y - 12, x + 80, y); ctx.stroke(); }
+      for (let i = 0; i < 7; i++) { const y = 860 + i * 110, a = 0.14 * fog; const f = ctx.createLinearGradient(0, y - 120, 0, y + 120); f.addColorStop(0, 'rgba(200,210,225,0)'); f.addColorStop(0.5, `rgba(200,210,225,${a})`); f.addColorStop(1, 'rgba(200,210,225,0)'); ctx.fillStyle = f; ctx.fillRect(0, y - 120, 1080, 240); }
+    };
+  },
   gMemory() {
     return ctx => {
       const g = ctx.createRadialGradient(540, 1000, 80, 540, 1000, 1100); g.addColorStop(0, '#f6e2bd'); g.addColorStop(1, '#b98a5e'); ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920);
@@ -328,6 +362,29 @@ export const GRACE_PROPS = {
   basket(ctx) { const p = new Path2D(); p.moveTo(-70, -30); p.lineTo(70, -30); p.lineTo(55, 40); p.lineTo(-55, 40); p.closePath(); fs(ctx, p, '#c48a4a', 4); ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, -30, 56, Math.PI, 0); ctx.stroke(); for (const [x, c] of [[-35, '#e2574c'], [0, '#f4b942'], [35, '#7c8f4a']]) fs(ctx, el(x, -38, 18, 16), c, 3); },
   coins(ctx) { for (let i = 0; i < 3; i++) fs(ctx, el(i * 18 - 18, -i * 6, 16, 8), '#f4b942', 3); },
   backpack(ctx, {color = '#3f6a7a'} = {}) { fs(ctx, rr(-60, -150, 120, 150, 30), color, 5); fs(ctx, rr(-44, -90, 88, 60, 14), dark(color, 0.15), 4); ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, -150, 28, Math.PI, 0); ctx.stroke(); },
+  // an oil lantern hanging from its ring (origin = top of the ring); lit 0..1 sets flame and glow
+  lanternG(ctx, {lit = 1} = {}) {
+    if (lit > 0.02) glow(ctx, 0, 90, 300 * lit, 0.55 * lit, '255,200,110');
+    ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 14, 16, Math.PI, 0); ctx.stroke();
+    fs(ctx, rr(-40, 22, 80, 22, 8), '#4a4a52', 4);
+    fs(ctx, rr(-34, 44, 68, 92, 12), lit > 0.02 ? `rgba(255,233,168,${0.55 + 0.45 * lit})` : 'rgba(110,115,130,.85)', 4);
+    if (lit > 0.02) { ctx.fillStyle = '#ffb43a'; ctx.fill(el(0, 96, 12 * lit + 3, 22 * lit + 4)); ctx.fillStyle = '#fff3c4'; ctx.fill(el(0, 102, 6 * lit + 1, 11 * lit + 2)); }
+    ctx.strokeStyle = INK; ctx.lineWidth = 4; for (const x of [-12, 12]) { ctx.beginPath(); ctx.moveTo(x, 46); ctx.lineTo(x, 134); ctx.stroke(); }
+    fs(ctx, rr(-40, 134, 80, 18, 6), '#4a4a52', 4);
+  },
+  // a rowboat in side view, origin at the waterline centre; a seated rower at the same y shows from the waist up.
+  // lantern: -1 none, else 0..1 on a pole at the bow (dir 1 = bow on the right)
+  rowboat(ctx, {w = 720, h = 230, color = '#8a5a36', lantern = -1, dir = 1, sea = '#1c2a3c'} = {}) {
+    if (lantern >= 0) { const px = dir * (w / 2 - 70); fs(ctx, rr(px - 8, -h - 330, 16, 340, 4), WARM.woodD, 4); fs(ctx, rr(px - 8, -h - 330, dir * 90, 14, 4), WARM.woodD, 4);
+      ctx.save(); ctx.translate(px + dir * 78, -h - 316); GRACE_PROPS.lanternG(ctx, {lit: lantern}); ctx.restore(); }
+    const hull = new Path2D(); hull.moveTo(-w / 2, -h); hull.lineTo(w / 2, -h); hull.quadraticCurveTo(w / 2 - 30, 20, w / 2 - 170, 40); hull.lineTo(-w / 2 + 170, 40); hull.quadraticCurveTo(-w / 2 + 30, 20, -w / 2, -h); hull.closePath();
+    fs(ctx, hull, color, 5); ctx.strokeStyle = dark(color, 0.25); ctx.lineWidth = 4; for (const y of [-h + 70, -h + 140]) { ctx.beginPath(); ctx.moveTo(-w / 2 + 30, y); ctx.lineTo(w / 2 - 30, y); ctx.stroke(); }
+    fs(ctx, rr(-w / 2 - 12, -h - 14, w + 24, 24, 8), dark(color, 0.2), 4);
+    const wv = new Path2D(); wv.moveTo(-w / 2 - 80, 0); for (let x = -w / 2 - 80; x < w / 2 + 80; x += 80) wv.quadraticCurveTo(x + 40, -18, x + 80, 0); wv.lineTo(w / 2 + 80, 120); wv.lineTo(-w / 2 - 80, 120); wv.closePath();
+    const fade = ctx.createLinearGradient(0, -18, 0, 120); fade.addColorStop(0, sea); fade.addColorStop(0.55, sea); fade.addColorStop(1, 'rgba(0,0,0,0)'); // the hull sinks into the sea, no hard box
+    ctx.fillStyle = fade; ctx.fill(wv); ctx.strokeStyle = 'rgba(150,180,220,.4)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-w / 2 - 80, 0); for (let x = -w / 2 - 80; x < w / 2 + 80; x += 80) ctx.quadraticCurveTo(x + 40, -18, x + 80, 0); ctx.stroke();
+  },
+  fish(ctx, {color = '#8fa3b0'} = {}) { const b = new Path2D(); b.ellipse(0, 0, 60, 24, 0, 0, Math.PI * 2); fs(ctx, b, color, 4); fs(ctx, poly([[52, 0], [92, -26], [92, 26]]), dark(color, 0.1), 4); ctx.fillStyle = INK; ctx.fill(el(-34, -6, 5, 5)); ctx.strokeStyle = dark(color, 0.3); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(-18, 0, 16, -1, 1); ctx.stroke(); },
   benchG(ctx, {w = 560, h = 120} = {}) { fs(ctx, rr(-w / 2, -h, w, 26, 8), WARM.wood, 5); for (const x of [-w / 2 + 34, w / 2 - 58]) fs(ctx, rr(x, -h + 26, 24, h - 26, 4), WARM.woodD, 4); }, // a plain bench; seat top at y = -h
   lunchbox(ctx, {color = '#e2574c'} = {}) { fs(ctx, rr(-70, -60, 140, 70, 10), color, 5); fs(ctx, rr(-26, -78, 52, 22, 8), null, 5); ctx.strokeStyle = dark(color, 0.25); ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-70, -36); ctx.lineTo(70, -36); ctx.stroke(); },
   sandwich(ctx) { fs(ctx, poly([[-50, 20], [50, 20], [0, -40]]), '#f2d6a0', 4); ctx.strokeStyle = '#7c8f4a'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-36, 6); ctx.lineTo(36, 6); ctx.stroke(); },

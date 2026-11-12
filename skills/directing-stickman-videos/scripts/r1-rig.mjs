@@ -204,7 +204,7 @@ export function drawCharacter(ctx, spec, st = {}) {
   drawHead(ctx, spec, P.head, st);
   ctx.restore();
   ctx.restore();
-  return {arms, drawArm, headTop: headY - P.head * 1.15 + bob + drop, headY: headY + bob + drop, height: -headY + P.head - drop};
+  return {arms, drop, bob, drawArm, headTop: headY - P.head * 1.15 + bob + drop, headY: headY + bob + drop, height: -headY + P.head - drop};
 }
 
 export function bodyMetrics(spec) {
@@ -316,14 +316,14 @@ function drawHead(ctx, spec, R, st) {
 function drawMouth(ctx, R, ex, talk, spec) {
   const y = R * 0.52;
   let kind = ex.mouth, open = 0;
-  if (talk > 0.05) { open = talk; kind = 'open'; }
+  if (talk > 0.05) { open = talk; kind = {sad: 'talkDown', frown: 'talkDown', flat: 'talkDown', wail: 'wail', o: 'o'}[ex.mouth] || 'open'; }
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  if (kind === 'open' || kind === 'wail' || kind === 'grin' || kind === 'o') {
+  if (kind === 'open' || kind === 'wail' || kind === 'grin' || kind === 'o' || kind === 'talkDown') {
     const w = kind === 'o' ? R * 0.14 : kind === 'grin' ? R * 0.33 : R * 0.26;
-    const h = kind === 'o' ? R * 0.2 : kind === 'grin' ? R * 0.26 : R * (0.1 + 0.26 * (open || ex.curve || 0.6));
+    const h = kind === 'o' ? R * (open ? 0.1 + 0.12 * open : 0.2) : kind === 'grin' ? R * 0.26 : kind === 'talkDown' ? R * (0.07 + 0.16 * open) : R * (0.1 + 0.26 * (open || ex.curve || 0.6));
     const m = new P2D();
     if (kind === 'o') m.ellipse(0, y + h * 0.3, w, h, 0, 0, Math.PI * 2);
-    else if (kind === 'wail') { m.moveTo(-w, y + h); m.quadraticCurveTo(0, y - h * 0.6, w, y + h); m.quadraticCurveTo(0, y + h * 1.3, -w, y + h); }
+    else if (kind === 'wail' || kind === 'talkDown') { m.moveTo(-w, y + h); m.quadraticCurveTo(0, y - h * 0.6, w, y + h); m.quadraticCurveTo(0, y + h * 1.3, -w, y + h); }
     else { m.moveTo(-w, y); m.quadraticCurveTo(0, y + R * 0.05, w, y); m.quadraticCurveTo(w * 0.8, y + h * 1.25, 0, y + h * 1.3); m.quadraticCurveTo(-w * 0.8, y + h * 1.25, -w, y); }
     ctx.save(); fillStroke(ctx, m, '#6b1f23', R * 0.06); ctx.clip(m);
     if (kind === 'grin') { ctx.fillStyle = '#ffffff'; ctx.fillRect(-w, y - 2, w * 2, h * 0.42 + 2); }

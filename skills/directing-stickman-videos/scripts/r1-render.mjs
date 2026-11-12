@@ -148,6 +148,7 @@ export function painter(tl) {
     else {
       const r = drawCharacter(w, spec, {...st, armsFront: !!a.armsFront});
       top = r.headTop; a._hy = r.headY;
+      const fl = a.flip ? -1 : 1; a._hands = {}; r.arms.forEach(({W: h}, i) => { a._hands[i ? 'R' : 'L'] = [x + fl * h[0] * s, y + (h[1] + r.drop + r.bob) * s]; }); // world hand positions, for held props
       a._arms = r; // arms drawn later when armsFront (over a hug partner)
     }
     w.filter = 'none'; w.restore();
@@ -164,6 +165,23 @@ export function painter(tl) {
   // Overlays are placed in SCREEN space (after the camera), so they never cover the top caption band or leave the frame.
   const SAFE_TOP = 400, SAFE_X = 24;
   const toScreen = (cam, [x, y]) => [(x - cam.x) * cam.z + W / 2, (y - cam.y) * cam.z + H / 2];
+  // placement lint (--lint): counters/bubbles on faces, a counter nearer someone else's head than its owner's, a bubble
+  // tail nearer someone else's head than the speaker's. These are the errors the adversarial critic kept finding.
+  function lintFrame(shot, t, cam, actors) {
+    const heads = actors.filter(a => a._xy && a._head && (a._alpha ?? 1) > 0.3).map(a => { const [hx, hy] = toScreen(cam, a._head); return {a, hx, hy, r: (a._headR || 15) * a._s * cam.z}; })
+      .filter(h => h.hx > -h.r && h.hx < W + h.r && h.hy > -h.r && h.hy < H + h.r);
+    const hit = ([cx, cy, hw, hh], h, k) => { const dx = Math.max(Math.abs(h.hx - cx) - hw, 0), dy = Math.max(Math.abs(h.hy - cy) - hh, 0); return dx * dx + dy * dy < (h.r * k) ** 2; };
+    const add = (kind, who, on) => tl._lint.push({t, shot: shot.start, kind, who, on});
+    for (const h of heads) { const c = h.a._ctr; if (!c) continue;
+      for (const g of heads) if (hit(c, g, 0.8)) add('counter-on-face', h.a.id, g.a.id);
+      const d = q => Math.hypot(q.hx - c[0], q.hy - c[1]), near = heads.reduce((m, q) => d(q) < d(m) ? q : m, h);
+      if (near !== h && d(near) < d(h) * 0.75) add('counter-nearer-other', h.a.id, near.a.id); }
+    for (const b of shot.bubbles || []) { const L = b._lint; if (!L || L.t !== t) continue;
+      const rc = [L.rect[0] + L.rect[2] / 2, L.rect[1] + L.rect[3] / 2, L.rect[2] / 2, L.rect[3] / 2];
+      for (const g of heads) if (hit(rc, g, 0.6)) add('bubble-on-face', b.actor, g.a.id);
+      const dt = q => Math.hypot(q.hx - L.tip[0], q.hy - L.tip[1]), near = heads.reduce((m, q) => !m || dt(q) < dt(m) ? q : m, null);
+      if (near && near.a.id !== b.actor) add('bubble-tail-other', b.actor, near.a.id); }
+  }
   function counter(a, t, cam, placed) {
     if (!a._led || a.counter === false || t < (a.counterT0 ?? -1) || t >= (a.counterT1 ?? 1e9)) return;
     const {v, changeT, delta} = a._led;
@@ -186,7 +204,7 @@ export function painter(tl) {
         if (toRight - hw >= SAFE_X && toRight + hw <= W - SAFE_X) cx = toRight; else cy = q[1] - q[3] - hh - 12 < SAFE_TOP + hh ? q[1] + q[3] + hh + 12 : q[1] - q[3] - hh - 12;
       }
     }
-    placed.push([cx, cy, hw, hh]);
+    placed.push([cx, cy, hw, hh]); a._ctr = [cx, cy, hw, hh];
     const pop = t - changeT < 0.28 ? 1 + 0.28 * Math.sin(clamp((t - changeT) / 0.28) * Math.PI) : 1;
     o.save(); o.globalAlpha = a._alpha ?? 1; o.translate(cx, cy); o.scale(cs * pop, cs * pop);
     const plate = new Path2D(); plate.roundRect(-pw / 2, -ph / 2, pw, ph, 18);
@@ -235,6 +253,7 @@ export function painter(tl) {
     for (const rc of placed) if (bx < rc[0] + rc[2] && bx + bw > rc[0] - rc[2] && by < rc[1] + rc[3] && by + bh > rc[1] - rc[3]) by = Math.min(H - 200 - bh, rc[1] + rc[3] + 12);
     o.save(); o.translate(mx, my); o.scale(k, k); o.translate(-mx, -my);
     const p = new Path2D(); p.roundRect(bx, by, bw, bh, 26);
+    b._lint = {t, rect: [bx, by, bw, bh], tip: side === 'above' ? [mx + r * 0.15, my - r * 1.6] : [mx + (side === 'right' ? r * 0.5 : -r * 0.5), my - r * 0.25]};
     const tail = new Path2D(); const tx = clamp(mx, bx + 40, bx + bw - 40); tail.moveTo(tx - 22, by + bh - 4); tail.lineTo(tx + 22, by + bh - 4); if (side === 'above') tail.lineTo(mx + r * 0.15, my - r * 1.6); else tail.lineTo(mx + (side === 'right' ? r * 0.5 : -r * 0.5), my - r * 0.25); tail.closePath(); // 'above': point at the top of the head, never across the face
     o.lineWidth = 10; o.strokeStyle = INK; o.lineJoin = 'round'; o.stroke(p); o.stroke(tail);
     o.fillStyle = b.fill || '#ffffff'; o.fill(p); o.fill(tail);
@@ -326,7 +345,9 @@ export function painter(tl) {
     const actors = shot.actors || [];
     const drawProps = layer => { for (const p of shot.props || []) {
       if ((p.after ? 'after:' + p.after : p.layer || 'back') !== layer || t < (p.t0 ?? -1) || t >= (p.t1 ?? 1e9)) continue;
-      w.save(); w.translate(keyAt(p.keys, t, 'x', p.x), keyAt(p.keys, t, 'y', p.y)); const sc = keyAt(p.keys, t, 's', p.s || 1); w.scale(sc, sc);
+      const H = p.hold ? actors.find(q => q.id === p.hold) : null; if (p.hold && !H?._hands) continue;
+      const hp = H ? H._hands[p.hand || 'R'] : null;
+      w.save(); w.translate(hp ? hp[0] + (p.dx || 0) : keyAt(p.keys, t, 'x', p.x), hp ? hp[1] + (p.dy || 0) : keyAt(p.keys, t, 'y', p.y)); const sc = keyAt(p.keys, t, 's', p.s || 1); w.scale(sc, sc);
       w.rotate(keyAt(p.keys, t, 'r', p.r || 0)); PROPS[p.type](w, typeof p.args === 'function' ? p.args(t) : p.args || {}); w.restore();
     } };
     drawProps('back');
@@ -352,11 +373,12 @@ export function painter(tl) {
     if (tl.look?.tint) { o.fillStyle = tl.look.tint; o.fillRect(0, 0, W, H); }
     if (tl.look?.vignette) { const g = o.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.8); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(60,25,5,${tl.look.vignette})`); o.fillStyle = g; o.fillRect(0, 0, W, H); }
     if (shot.flash) { const q = (t - shot.flash) / 0.25; if (q >= 0 && q < 1) { o.fillStyle = `rgba(255,255,255,${(1 - q) * 0.85})`; o.fillRect(0, 0, W, H); } }
-    const placed = [];
+    const placed = []; for (const a of actors) a._ctr = null;
     const hidden = (shot.hideCounters || []).some(([a, b]) => t >= a && t < b);
     if (!hidden) for (const a of actors) if (a._xy) counter(a, t, cam, placed);
     for (const pc of shot.plates || []) if (t >= pc.t0 && t < (pc.t1 ?? 1e9)) counter({_led: {v: pc.v, changeT: -9, delta: 0}, _top: [pc.x, pc.y], _head: [pc.x, pc.y + 40], _s: 7, counterScale: pc.scale || 1}, t, cam, placed);
     for (const b of shot.bubbles || []) bubble(b, t, actors, cam, placed);
+    if (tl._lint) lintFrame(shot, t, cam, actors);
     titles(shot, t);
     captions(t);
     return out;
@@ -437,6 +459,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (opt('--remix')) { // audio only: re-mix onto an existing silent render (DIR/video-silent.mp4)
     mixAudio({...tl, duration: total / tl.fps}, path.join(out, 'video-silent.mp4'), path.join(out, opt('--name') || 'episodio.mp4'));
     console.log('remix ok');
+  } else if (process.argv.includes('--lint')) { // sample every 0.1 s, group the hits per shot
+    const frame = painter(tl); tl._lint = [];
+    for (let t = 0; t < tl.duration; t += 0.1) frame(+t.toFixed(2));
+    const g = {}; for (const h of tl._lint) { const k = [h.shot.toFixed(2), h.kind, h.who, h.on].join('|'); (g[k] ||= {first: h.t, last: h.t, n: 0}); g[k].last = h.t; g[k].n++; }
+    const rows = Object.entries(g).filter(([, v]) => v.n >= 3).map(([k, v]) => { const [sh, kind, who, on] = k.split('|'); return {t0: +v.first.toFixed(1), t1: +v.last.toFixed(1), kind, who, on, shot: +sh}; }).sort((a, b) => a.t0 - b.t0);
+    fs.writeFileSync(path.join(out, 'lint.json'), JSON.stringify(rows, null, 1));
+    for (const r of rows) console.log(`${r.t0.toFixed(1)}–${r.t1.toFixed(1)}s  ${r.kind}  ${r.who}${r.on !== r.who ? ' → ' + r.on : ''}`);
+    console.log(`lint: ${rows.length} issue(s) (≥0.3 s each)`);
   } else if (opt('--stills')) {
     const frame = painter(tl);
     for (const s of opt('--stills').split(',').map(Number)) fs.writeFileSync(path.join(out, `still-${s.toFixed(2)}.png`), frame(s).toBuffer('image/png'));
