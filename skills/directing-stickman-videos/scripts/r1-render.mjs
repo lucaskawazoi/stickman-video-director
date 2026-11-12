@@ -180,10 +180,11 @@ export function painter(tl) {
       const rc = [L.rect[0] + L.rect[2] / 2, L.rect[1] + L.rect[3] / 2, L.rect[2] / 2, L.rect[3] / 2];
       for (const g of heads) if (hit(rc, g, 0.6)) add('bubble-on-face', b.actor, g.a.id);
       const dt = q => Math.hypot(q.hx - L.tip[0], q.hy - L.tip[1]), near = heads.reduce((m, q) => !m || dt(q) < dt(m) ? q : m, null);
-      if (near && near.a.id !== b.actor) add('bubble-tail-other', b.actor, near.a.id); }
+      if (near && near.a.id !== b.actor) add('bubble-tail-other', b.actor, near.a.id);
+      if (near && dt(near) < near.r * 0.85) add('bubble-tail-in-face', b.actor, near.a.id); }
     for (const h of heads) for (const [k, hp] of Object.entries(h.a._hands || {})) { // a hand on someone else's face reads as a blow
       const [sx, sy] = toScreen(cam, hp);
-      for (const g of heads) if (g !== h && Math.hypot(g.hx - sx, g.hy - sy) < g.r * 1.45) add('hand-on-face', h.a.id + '.' + k, g.a.id); }
+      for (const g of heads) if (g !== h && Math.hypot(g.hx - sx, g.hy - sy) < g.r * 1.65) add('hand-on-face', h.a.id + '.' + k, g.a.id); }
     for (const ti of shot.titles || []) { if (t < ti.t0 || t >= (ti.t1 ?? 1e9)) continue; // approximate box: full card width, lines × line height
       const n = String(ti.text).split('\n').length, hh = n * (ti.size || 60) * (ti.lh || 1.15) / 2 + (ti.card ? 40 : 6);
       for (const g of heads) if (hit([W / 2, ti.y, ti.card ? 470 : 380, hh], g, 0.6)) add('title-on-face', 'title', g.a.id); }
@@ -259,8 +260,8 @@ export function painter(tl) {
     for (const rc of placed) if (bx < rc[0] + rc[2] && bx + bw > rc[0] - rc[2] && by < rc[1] + rc[3] && by + bh > rc[1] - rc[3]) by = Math.min(H - 200 - bh, rc[1] + rc[3] + 12);
     o.save(); o.translate(mx, my); o.scale(k, k); o.translate(-mx, -my);
     const p = new Path2D(); p.roundRect(bx, by, bw, bh, 26);
-    b._lint = {t, rect: [bx, by, bw, bh], tip: side === 'above' ? [mx + r * 0.15, my - r * 1.6] : [mx + (side === 'right' ? r * 0.5 : -r * 0.5), my - r * 0.25]};
-    const tail = new Path2D(); const tx = clamp(mx, bx + 40, bx + bw - 40); tail.moveTo(tx - 22, by + bh - 4); tail.lineTo(tx + 22, by + bh - 4); if (side === 'above') tail.lineTo(mx + r * 0.15, my - r * 1.6); else tail.lineTo(mx + (side === 'right' ? r * 0.5 : -r * 0.5), my - r * 0.25); tail.closePath(); // 'above': point at the top of the head, never across the face
+    b._lint = {t, rect: [bx, by, bw, bh], tip: side === 'above' ? [mx + r * 0.15, my - r * 1.6] : [mx + (side === 'right' ? r * 1.02 : -r * 1.02), my - r * 0.15]};
+    const tail = new Path2D(); const tx = clamp(mx, bx + 40, bx + bw - 40); tail.moveTo(tx - 22, by + bh - 4); tail.lineTo(tx + 22, by + bh - 4); if (side === 'above') tail.lineTo(mx + r * 0.15, my - r * 1.6); else tail.lineTo(mx + (side === 'right' ? r * 1.02 : -r * 1.02), my - r * 0.15); // stop at the cheek outline, never inside the face tail.closePath(); // 'above': point at the top of the head, never across the face
     o.lineWidth = 10; o.strokeStyle = INK; o.lineJoin = 'round'; o.stroke(p); o.stroke(tail);
     o.fillStyle = b.fill || '#ffffff'; o.fill(p); o.fill(tail);
     o.fillStyle = INK; o.textAlign = 'center'; o.textBaseline = 'middle';
