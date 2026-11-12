@@ -383,7 +383,7 @@ export function painter(tl) {
     const placed = []; for (const a of actors) a._ctr = null;
     const hidden = (shot.hideCounters || []).some(([a, b]) => t >= a && t < b);
     if (!hidden) for (const a of actors) if (a._xy) { a._shotStart = shot.start; counter(a, t, cam, placed); }
-    for (const pc of shot.plates || []) if (t >= pc.t0 && t < (pc.t1 ?? 1e9)) counter({_led: {v: pc.v, changeT: -9, delta: 0}, _top: [pc.x, pc.y], _head: [pc.x, pc.y + 40], _s: 7, counterScale: pc.scale || 1}, t, cam, placed);
+    for (const pc of shot.plates || []) if (t >= pc.t0 && t < (pc.t1 ?? 1e9)) counter({_led: {v: typeof pc.v === 'function' ? pc.v(t) : pc.v, changeT: -9, delta: 0}, _top: [pc.x, pc.y], _head: [pc.x, pc.y + 40], _s: 7, counterScale: pc.scale || 1}, t, cam, placed);
     for (const b of shot.bubbles || []) bubble(b, t, actors, cam, placed);
     if (tl._lint) lintFrame(shot, t, cam, actors);
     titles(shot, t);

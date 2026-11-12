@@ -72,13 +72,55 @@ function room(ctx, wall, trim, floor, y = 1300) {
   ctx.strokeStyle = dark(floor, 0.18); ctx.lineWidth = 3; for (let yy = y + 50; yy < 1920; yy += 64 + (yy - y) * 0.12) { ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(1080, yy); ctx.stroke(); }
 }
 function glow(ctx, x, y, r, a = 0.45, c = '255,205,120') { const g = ctx.createRadialGradient(x, y, 10, x, y, r); g.addColorStop(0, `rgba(${c},${a})`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, 2 * r, 2 * r); }
-function windowPane(ctx, x, y, w, h, time) {
+function windowPane(ctx, x, y, w, h, time, view = null) {
   fs(ctx, rr(x - 14, y - 14, w + 28, h + 28, 10), WARM.cream, 6);
   const [a, b] = SKY[time] || SKY.gold, g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, a); g.addColorStop(1, b);
   fs(ctx, rr(x, y, w, h, 4), null, 0); ctx.fillStyle = g; ctx.fill(rr(x, y, w, h, 4));
-  if (time !== 'night') { ctx.save(); ctx.clip(rr(x, y, w, h, 4)); olive(ctx, x + w * 0.7, y + h + 60, 0.7); ctx.restore(); }
-  else { ctx.fillStyle = '#fff1c4'; ctx.fill(el(x + w * 0.7, y + h * 0.3, 26, 26)); }
+  if (time !== 'night' && !view) { ctx.save(); ctx.clip(rr(x, y, w, h, 4)); olive(ctx, x + w * 0.7, y + h + 60, 0.7); ctx.restore(); }
+  else if (time === 'night') { ctx.fillStyle = '#fff1c4'; ctx.fill(el(x + w * 0.7, y + h * 0.3, 26, 26)); }
+  windowView(ctx, x, y, w, h, view);
   ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.strokeRect(x, y, w, h); ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2, y + h); ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2); ctx.stroke();
+}
+
+
+// ---- stars (episode "The Stars"): stylized gold five-point stars that glow by day too ----
+const easeOutBack = k => { k = Math.max(0, Math.min(1, k)); const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+function starPath(r, inner = 0.5) { const p = new Path2D(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r * inner : r; i ? p.lineTo(Math.cos(a) * q, Math.sin(a) * q) : p.moveTo(Math.cos(a) * q, Math.sin(a) * q); } p.closePath(); return p; }
+// one star at (x, y) radius r; k 0..1 = the pop-in (overshoot + a ring); tw = twinkle phase (seconds) or null
+function drawStar(ctx, x, y, r, {k = 1, tw = null, halo = 1} = {}) {
+  if (k <= 0) return;
+  const sc = easeOutBack(k) * (tw == null ? 1 : 1 + 0.06 * Math.sin(tw * 3.1));
+  ctx.save(); ctx.translate(x, y);
+  if (halo > 0) { const R = r * 2.6 * sc, g = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, R); g.addColorStop(0, `rgba(255,224,130,${0.55 * halo})`); g.addColorStop(1, 'rgba(255,224,130,0)'); ctx.fillStyle = g; ctx.fillRect(-R, -R, 2 * R, 2 * R); }
+  if (k < 1) { ctx.strokeStyle = `rgba(255,236,170,${0.9 * (1 - k)})`; ctx.lineWidth = 5 * (1 - k) + 1; ctx.beginPath(); ctx.arc(0, 0, r * (1 + 1.4 * k), 0, 7); ctx.stroke(); }
+  ctx.scale(sc, sc); ctx.rotate(0.06);
+  const st = starPath(r, 0.52); ctx.lineJoin = 'round';
+  ctx.fillStyle = '#ffc94a'; ctx.fill(st); ctx.lineWidth = Math.max(2.2, r * 0.13); ctx.strokeStyle = INK; ctx.stroke(st);
+  ctx.fillStyle = '#ffe58a'; ctx.fill(starPath(r * 0.5, 0.52)); ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fill(el(-r * 0.22, -r * 0.3, r * 0.12, r * 0.07, -0.6));
+  ctx.restore();
+}
+// n stars (fractional n: the last one is popping in) in an ellipse w × h, laid out by a spiral so earlier stars never move
+function starField(ctx, {n = 3, total, w = 260, h = 150, r0 = 12, r1 = 20, seed = 1, t = 0, tw = true, halo = 1} = {}) {
+  const T = Math.max(1, total ?? Math.ceil(n)), whole = Math.floor(n + 1e-6), frac = n - whole;
+  for (let i = Math.ceil(n) - 1; i >= 0; i--) {
+    const a = i * 2.39996 + seed * 1.7, q = Math.sqrt((i + 0.5) / T), x = Math.cos(a) * q * w / 2, y = Math.sin(a) * q * h / 2;
+    const r = r0 + (r1 - r0) * hashN(i * 3.1 + seed), k = i < whole ? 1 : frac;
+    drawStar(ctx, x, y, r, {k, tw: tw ? t + hashN(i + seed) * 6 : null, halo});
+  }
+}
+// what a window looks at: 'lane' = across the street, Mr. Okoro's roof dark among starry ones; 'okoro' = his roof crowded; 'sky' = full of stars
+function windowView(ctx, x, y, w, h, view, t = 0) {
+  if (!view) return;
+  ctx.save(); ctx.clip(rr(x, y, w, h, 4));
+  if (view === 'sky') { ctx.save(); ctx.translate(x + w / 2, y + h * 0.5); starField(ctx, {n: 46, total: 46, w: w * 0.95, h: h * 0.95, r0: 9, r1: 20, seed: 5, t, halo: 0.8}); ctx.restore(); }
+  else {
+    ctx.fillStyle = 'rgba(40,30,60,.0)';
+    const cot = (cx, w0, c, roof) => { ctx.save(); ctx.translate(cx, y + h + 6); ctx.scale(0.34, 0.34); fs(ctx, rr(-w0 / 2, -300, w0, 300, 4), c, 7); fs(ctx, poly([[-w0 / 2 - 26, -294], [0, -420], [w0 / 2 + 26, -294]]), roof, 7); fs(ctx, rr(-w0 / 2 + 30, -230, 80, 100, 4), '#4a3a3e', 5); ctx.restore(); };
+    cot(x + w * 0.24, 260, WARM.plaster[2], WARM.roof); cot(x + w * 0.76, 280, WARM.plaster[3], view === 'lane' ? '#6b4a44' : WARM.roof);
+    ctx.save(); ctx.translate(x + w * 0.24, y + h - 190); starField(ctx, {n: 3, w: 80, h: 40, r0: 8, r1: 12, seed: 2, t, halo: 0.7}); ctx.restore();
+    if (view === 'okoro') { ctx.save(); ctx.translate(x + w * 0.74, y + h - 210); starField(ctx, {n: 28, total: 28, w: 130, h: 90, r0: 7, r1: 12, seed: 4, t, halo: 0.7}); ctx.restore(); }
+  }
+  ctx.restore();
 }
 
 export const GRACE_SETS = {
@@ -160,11 +202,11 @@ export const GRACE_SETS = {
     };
   },
   // warm bedroom; night = plum dark with a bedside candle
-  gBedroom({time = 'night'} = {}) {
+  gBedroom({time = 'night', view = null, lift = 0} = {}) {
     return ctx => {
       const night = time === 'night';
-      room(ctx, night ? '#5d4366' : '#f2d7a8', night ? '#4a3352' : '#c98f5a', night ? '#5a3c34' : '#b98a5e');
-      windowPane(ctx, 120, 340, 320, 420, night ? 'night' : 'noon');
+      room(ctx, night ? mix('#5d4366', '#ffffff', lift) : '#f2d7a8', night ? mix('#4a3352', '#ffffff', lift) : '#c98f5a', night ? mix('#5a3c34', '#ffffff', lift) : '#b98a5e');
+      windowPane(ctx, 120, 340, 320, 420, night ? 'night' : 'noon', view);
       for (const x of [80, 450]) fs(ctx, rr(x, 300, 60, 560, 20), night ? '#8a3f4a' : '#c4643a', 4);
       fs(ctx, rr(560, 1010, 40, 420, 10), WARM.wood); fs(ctx, rr(1040, 1110, 40, 320, 10), WARM.wood);
       fs(ctx, rr(560, 1180, 520, 120, 16), '#fbf1dc');
@@ -332,6 +374,16 @@ export const GRACE_SETS = {
 };
 
 export const GRACE_PROPS = {
+  // one gold star, origin at its centre; k 0..1 pops it in (overshoot + ring). Visible by day, glows more at night.
+  starG(ctx, {k = 1, r = 40, t = null, halo = 1} = {}) { drawStar(ctx, 0, 0, r, {k, tw: t, halo}); },
+  // n stars crowded into an ellipse w × h around the origin; fractional n pops the next one in; total fixes the layout
+  starField(ctx, args = {}) { starField(ctx, args); },
+  // a card of nights counted: NIGHT / n
+  calendarN(ctx, {n = 1} = {}) { fs(ctx, rr(-110, -120, 220, 240, 14), '#fbf1dc', 5); fs(ctx, rr(-110, -120, 220, 60, 14), '#c4643a', 5); ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.font = '48px GraceCaption'; ctx.fillText('NIGHT', 0, -72 + 4); ctx.font = '120px GraceCaption'; ctx.fillText(String(n), 0, 64); ctx.textAlign = 'left'; },
+  // a wooden signpost, origin at its foot
+  signpost(ctx, {text = 'CYPRESS LANE'} = {}) { fs(ctx, rr(-9, -300, 18, 300, 4), WARM.woodD, 4); fs(ctx, rr(-190, -330, 380, 96, 12), WARM.wood, 5); ctx.fillStyle = WARM.cream; ctx.font = '58px GraceCaption'; ctx.textAlign = 'center'; ctx.fillText(text, 0, -262); ctx.textAlign = 'left'; },
+  // a patchwork quilt over someone's lap in bed (origin = top centre)
+  quiltG(ctx, {w = 430, h = 230, color = '#d9a441', color2 = '#c4643a'} = {}) { fs(ctx, rr(-w / 2, 0, w, h, 30), color, 6); ctx.save(); ctx.clip(rr(-w / 2, 0, w, h, 30)); for (let i = 0; i < 5; i++) for (let j = 0; j < 3; j++) if ((i + j) % 2) { ctx.fillStyle = color2; ctx.fillRect(-w / 2 + i * w / 5, j * h / 3, w / 5, h / 3); } ctx.restore(); ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.stroke(rr(-w / 2, 0, w, h, 30)); },
   gDoorLeaf(ctx, {open = 0, color = '#5a6e8a'} = {}) { // hinge on the left of the 380..700 doorway
     const w = 320 * (1 - open * 0.85); if (w < 4) return;
     fs(ctx, rr(0, 0, w, 670, 4), color, 5); ctx.strokeStyle = dark(color, 0.25); ctx.lineWidth = 4;
