@@ -16,7 +16,7 @@ export const dark = (hex, k = 0.18) => mix(hex, '#000000', k);
 export const light = (hex, k = 0.25) => mix(hex, '#ffffff', k);
 
 // ---------- body plans ----------
-const PLANS = {
+export const PLANS = {
   adult: {leg: 40, torso: 28, neck: 3, head: 15, sw: 23, hw: 20, upper: 14.5, fore: 13.5, armW: 4.2, legW: 8.6},
   elder: {leg: 42, torso: 28, neck: 3, head: 15, sw: 22, hw: 19, upper: 15, fore: 14, armW: 4, legW: 8},
   kid: {leg: 25, torso: 20, neck: 2, head: 14.5, sw: 18, hw: 17, upper: 10.5, fore: 10, armW: 3.6, legW: 7},
@@ -100,7 +100,7 @@ export function drawCharacter(ctx, spec, st = {}) {
   ctx.save(); ctx.translate(0, bob);
   // legs
   const walk = st.walk;
-  const legA = walk == null ? [0, 0] : [Math.sin(walk) * 16, -Math.sin(walk) * 16];
+  const lAmp = st.legAmp || 16, legA = walk == null ? [0, 0] : [Math.sin(walk) * lAmp, -Math.sin(walk) * lAmp];
   const legX = P.hw * 0.26;
   const sit = st.sit || 0, drop = P.leg * 0.45 * sit; // seated, front view: hips sink, thighs come at the camera, shins hang
   [-1, 1].forEach((sg, i) => {
@@ -115,6 +115,11 @@ export function drawCharacter(ctx, spec, st = {}) {
     ctx.restore(); ctx.restore();
   });
   ctx.translate(0, drop);
+  // upper body: lean (deg, sideways) and stoop (0..1: shoulders sink, head drops between them) about the hips
+  const lean = st.lean || 0, stoop = Math.max(0, Math.min(1.2, st.stoop || 0)), crownV = st.crown;
+  const sy = 1 - 0.2 * stoop, headSink = P.head * 0.38 * stoop;
+  ctx.save();
+  if (lean || stoop) { ctx.translate(0, hipY); ctx.rotate(rad(lean)); ctx.scale(1, sy); ctx.translate(0, -hipY); }
   // torso
   const o = spec.outfit || {type: 'shirt', color: '#3d5a99'};
   const torsoTop = shY - 2, torsoH = hipY - torsoTop + 2;
@@ -200,11 +205,48 @@ export function drawCharacter(ctx, spec, st = {}) {
   };
   if (!st.armsFront) arms.forEach(drawArm);
   // head
-  ctx.save(); ctx.translate(0, headY); ctx.rotate(rad(st.tilt || 0));
+  ctx.save(); ctx.translate(0, headY + headSink); ctx.rotate(rad(st.tilt || 0));
+  if (crownV != null) drawCrownGlow(ctx, P.head, crownV);
   drawHead(ctx, spec, P.head, st);
+  const crownH = crownV != null ? drawCrown(ctx, P.head, crownV, st.crownPop || 1) : 0;
   ctx.restore();
+  ctx.restore(); // upper body
   ctx.restore();
-  return {arms, drop, bob, drawArm, headTop: headY - P.head * 1.15 + bob + drop, headY: headY + bob + drop, height: -headY + P.head - drop};
+  // head centre after lean/stoop (rotation about the hips, then the squash)
+  const dyH = (headY + headSink - hipY) * sy, th = rad(lean), hdx = -dyH * Math.sin(th), hdy = hipY + dyH * Math.cos(th);
+  const topLocal = crownV != null ? (headY + headSink - P.head * 0.62 - crownH) : (headY + headSink - P.head * 1.15), dyT = (topLocal - hipY) * sy;
+  return {arms, drop, bob, drawArm, headDx: hdx, headTop: hipY + dyT * Math.cos(th) + bob + drop, headY: hdy + bob + drop, height: -headY + P.head - drop};
+}
+
+// the crown of weight v (pounds): a light circlet at 0, a bigger and heavier (brass → iron) crown as v grows. Drawn in the head frame.
+// Returns the crown's height above its base so the counter can sit above it.
+// a soft glow behind the head when the crown has become a light circlet (drawn BEFORE the head so it never washes out the face)
+export function drawCrownGlow(ctx, R, v) {
+  if (v >= 1.5) return;
+  const y0 = -R * 0.62, g = ctx.createRadialGradient(0, y0 - R * 0.2, R * 0.2, 0, y0 - R * 0.2, R * 2.2); g.addColorStop(0, 'rgba(255,236,160,.6)'); g.addColorStop(1, 'rgba(255,236,160,0)');
+  ctx.fillStyle = g; ctx.fillRect(-R * 2.4, y0 - R * 2.6, R * 4.8, R * 4.8);
+}
+export function drawCrown(ctx, R, v, pop = 1) {
+  const u = Math.min(1, Math.max(0, v) / 40), q = Math.sqrt(u);
+  const w = R * (1.0 + 1.55 * q) * pop, y0 = -R * (0.62 + 0.04 * q), bh = R * (0.2 + 0.3 * u), th = R * (0.34 + 0.95 * q) * pop;
+  const gold = mix('#f6c453', '#8b8d97', Math.min(1, u * 1.05)), goldD = dark(gold, 0.25);
+  ctx.save(); ctx.translate(0, 0);
+  const tips = [], n = 4; // five points
+  const poly2 = new P2D(); poly2.moveTo(-w / 2, y0);
+  for (let i = 0; i <= n; i++) {
+    const x = -w / 2 + (i / n) * w, hh = th * (i === 2 ? 1 : i % 2 ? 0.74 : 0.86);
+    tips.push([x, y0 - bh - hh]); poly2.lineTo(x, y0 - bh - hh);
+    if (i < n) poly2.lineTo(x + w / n / 2, y0 - bh - th * 0.32);
+  }
+  poly2.lineTo(w / 2, y0); poly2.closePath();
+  ctx.lineJoin = 'round'; fillStroke(ctx, poly2, gold, 1.1 + 0.8 * u);
+  const band = rrect(-w / 2 - R * 0.04, y0 - bh, w + R * 0.08, bh, R * 0.06); fillStroke(ctx, band, goldD, 1.1 + 0.8 * u);
+  for (const [x, y] of tips) fillStroke(ctx, circle(x, y - R * 0.02, R * (0.075 + 0.05 * q)), v < 1.5 ? '#fff6c8' : light(gold, 0.35), 0.8);
+  const gems = Math.max(1, Math.min(5, 1 + Math.round(v / 9)));
+  for (let i = 0; i < gems; i++) { const x = gems === 1 ? 0 : -w / 2 * 0.72 + (i / (gems - 1)) * w * 0.72; fillStroke(ctx, circle(x, y0 - bh / 2, Math.min(bh * 0.32, R * 0.14)), ['#d9483b', '#3f8fd6', '#47b36a'][i % 3], 0.7); }
+  if (u > 0.35) { ctx.fillStyle = 'rgba(30,30,40,.32)'; for (let i = 0; i < 4; i++) ctx.fill(circle(-w * 0.36 + i * w * 0.24, y0 - bh * 0.5 + (i % 2) * 0.1 * bh, R * 0.04)); } // iron rivets
+  ctx.restore();
+  return bh + th + R * 0.1;
 }
 
 export function bodyMetrics(spec) {

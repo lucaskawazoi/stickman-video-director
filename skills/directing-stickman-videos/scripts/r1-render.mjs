@@ -8,7 +8,7 @@ import {spawn, spawnSync} from 'node:child_process';
 import {once} from 'node:events';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {createCanvas, GlobalFonts, Path2D} from '@napi-rs/canvas';
-import {drawCharacter, drawBaby, bodyMetrics, POSES, EXPR, INK} from './r1-rig.mjs';
+import {drawCharacter, drawBaby, bodyMetrics, POSES, EXPR, INK, PLANS} from './r1-rig.mjs';
 import {SETS, PROPS} from './r1-world.mjs';
 import './r1-world-grace.mjs'; // grace-remains sets/props register themselves
 
@@ -33,17 +33,17 @@ function keyAt(keys, t, prop, def) {
   return lerp(a[prop], b[prop], (b.ease === 'linear' ? clamp : ease)((t - a.t) / (b.t - a.t)));
 }
 export function ledgerAt(ledger, t) { // -> {v (shown integer), changeT, delta}
-  let v = ledger?.[0]?.v ?? 0, changeT = -9, delta = 0, shown = v;
+  let v = ledger?.[0]?.v ?? 0, changeT = -9, delta = 0, shown = v, cont = v;
   for (let i = 0; i < (ledger || []).length; i++) {
     const k = ledger[i]; if (t < k.t) break;
     const prev = v; v = k.v;
-    if (i === 0) { shown = v; continue; }
+    if (i === 0) { shown = v; cont = v; continue; }
     const d = k.roll || 0;
-    if (d && t < k.t + d) { shown = Math.round(lerp(prev, v, easeOut((t - k.t) / d))); }
-    else shown = v;
+    if (d && t < k.t + d) { cont = lerp(prev, v, (k.linear ? clamp((t - k.t) / d) : easeOut((t - k.t) / d))); shown = Math.round(cont); }
+    else { shown = v; cont = v; }
     changeT = k.t + (k.roll || 0); delta = k.v - (ledger[i - 1]?.v ?? k.v);
   }
-  return {v: shown, target: v, changeT, delta};
+  return {v: shown, cont, target: v, changeT, delta};
 }
 const satFor = v => v <= 0 ? 0 : clamp(v / 100);
 
@@ -107,6 +107,36 @@ export function painter(tl) {
     x = clamp(x, 540 / z, 1080 - 540 / z); y = clamp(y, 960 / z, 1920 - 960 / z);
     return {z, x, y};
   }
+  // ---- kinematics shared by drawing and by arm IK (a.ik): where an actor is, how it stoops, without drawing it
+  function kin(a, t) {
+    const spec = tl.cast[a.char || a.id], LG = a.ledger !== false ? tl.ledgers[a.ledger || a.id] : null, led = LG ? ledgerAt(LG, t) : null;
+    const cv = a.crown && led ? led.cont : null, popQ = led ? (t - led.changeT) / 0.32 : 2;
+    const thud = popQ >= 0 && popQ < 1 && led.delta && !a.noThud ? Math.sin(popQ * Math.PI) * Math.sign(led.delta) : 0;
+    const stoopK = keyAt(a.keys, t, 'stoop', undefined), stoopA = cv != null ? Math.max(0, Math.min(1, (cv - 6) / 34)) * 0.95 : 0;
+    return {spec, led, cv, thud, stoop: Math.max(0, (stoopK ?? stoopA) + 0.3 * thud), lean: keyAt(a.keys, t, 'lean', a.lean || 0), rot: keyAt(a.keys, t, 'rot', 0), dyAdj: keyAt(a.keys, t, 'dy', 0),
+      x: keyAt(a.keys, t, 'x', a.x), y: keyAt(a.keys, t, 'y', a.y), s: keyAt(a.keys, t, 's', a.s || 7), fl: a.flip ? -1 : 1};
+  }
+  const toRad = d => d * Math.PI / 180;
+  // a point (ux, uy) in actor tg's local units (origin = feet) -> world; upper: through its lean/stoop about the hips
+  function localToWorld(tg, t, [ux, uy], upper) {
+    const k = kin(tg, t); let px = ux, py = uy;
+    if (upper && (k.lean || k.stoop)) { const hip = bodyMetrics(k.spec).hipY, dy = (py - hip) * (1 - 0.2 * k.stoop), th = toRad(k.lean); px = ux * Math.cos(th) - dy * Math.sin(th); py = hip + ux * Math.sin(th) + dy * Math.cos(th); }
+    const cr = Math.cos(toRad(k.rot)), sr = Math.sin(toRad(k.rot)), X = px * k.fl * k.s, Y = py * k.s;
+    return [k.x + X * cr - Y * sr, k.y + k.dyAdj + X * sr + Y * cr];
+  }
+  // two-bone arm IK: the angles [shoulder, elbow] that put the wrist of arm `hand` (L|R) on the world point P
+  function armToward(a, t, k, hand, P) {
+    const spec = k.spec, Pl = PLANS[spec.plan || 'adult'], sg = hand === 'L' ? -1 : 1, M = bodyMetrics(spec);
+    const cr = Math.cos(toRad(k.rot)), sr = Math.sin(toRad(k.rot)), dx = P[0] - k.x, dy = P[1] - k.y - k.dyAdj;
+    let lx = (dx * cr + dy * sr) / k.s * k.fl, ly = (-dx * sr + dy * cr) / k.s;
+    if (k.lean || k.stoop) { const hip = M.hipY, th = toRad(k.lean), ux = lx, uy = ly - hip; lx = ux * Math.cos(th) + uy * Math.sin(th); ly = hip + (-ux * Math.sin(th) + uy * Math.cos(th)) / (1 - 0.2 * k.stoop); }
+    const Sx = sg * (Pl.sw / 2 - 1.8), Sy = -(Pl.leg + Pl.torso) + 2 + 1.2, tx = sg * (lx - Sx), ty = ly - Sy, u = Pl.upper, f = Pl.fore;
+    const d = Math.min(u + f - 0.3, Math.max(Math.abs(u - f) + 0.3, Math.hypot(tx, ty))), beta = Math.atan2(tx, ty), g = Math.acos(Math.max(-1, Math.min(1, (u * u + d * d - f * f) / (2 * u * d))));
+    let best = null;
+    for (const a1 of [beta - g, beta + g]) { const Ex = Math.sin(a1) * u, Ey = Math.cos(a1) * u; if (!best || Ey > best.Ey) best = {a1, Ex, Ey}; } // elbow down
+    const a2 = Math.atan2(tx - best.Ex, ty - best.Ey) - best.a1;
+    return [best.a1 * 180 / Math.PI, a2 * 180 / Math.PI];
+  }
   function drawActor(a, t, shot) {
     const spec = tl.cast[a.char || a.id];
     if (!spec) throw new Error(`No cast entry for actor ${a.id} (char ${a.char})`);
@@ -118,14 +148,22 @@ export function painter(tl) {
     const sat = a.sat ?? (led && tl.counter?.sat !== false ? satFor(led.v) : 1);
     const walkSeg = (a.walk || []).find(([t0, t1]) => t >= t0 && t < t1);
     const walk = walkSeg ? (t - walkSeg[0]) * (walkSeg[2] || 9) : null;
+    const K = kin(a, t), cv = K.cv, thud = K.thud, swingPose = poseAt(a, t);
+    if (a.swing && walk != null) { swingPose.L[0] += Math.sin(walk) * a.swing; swingPose.R[0] -= Math.sin(walk) * a.swing; }
+    for (const q of a.ik || []) { if (t < q.t0 || t >= q.t1) continue; // an arm reaches for a point on another actor (blended in and out over 0.18 s)
+      const tg = (shot.actors || []).find(z => z.id === q.to); if (!tg) continue;
+      const P = localToWorld(tg, t, q.at, q.upper !== false), ang = armToward(a, t, K, q.hand, P), w8 = Math.min(1, (t - q.t0) / 0.18, (q.t1 - t) / 0.18);
+      swingPose[q.hand] = [lerp(swingPose[q.hand][0], ang[0], ease(w8)), lerp(swingPose[q.hand][1], ang[1], ease(w8))]; }
     const st = {
-      pose: poseAt(a, t), expr: stepAt(a.expr, t, a.exprDefault || 'neutral'), talk: talkAt(a, t), blink: blinkAt(a, t),
+      crown: cv, crownPop: cv != null ? 1 + 0.22 * Math.max(0, thud) - 0.1 * Math.max(0, -thud) : 1, stoop: K.stoop, lean: K.lean, legAmp: a.legAmp,
+      pose: swingPose, expr: stepAt(a.expr, t, a.exprDefault || 'neutral'), talk: talkAt(a, t), blink: blinkAt(a, t),
       gaze: stepAt(a.gaze, t, tl.counter?.pack && led?.v >= 25 && a.bend !== 0 ? [0, 0.7] : [0, 0]), tilt: stepAt(a.tilt, t, 0) + Math.sin(t * 1.1 + hash(a.id) * 9) * 1.2 + (a.sway ? Math.sin(t * a.sway[0]) * a.sway[1] : 0),
       marks: tl.counter?.hands && led && a.marks !== false ? led.v : 0, gloves: stepAt(a.gloves, t, false), gloveColor: a.gloveColor,
       sit: keyAt(a.keys, t, 'sit', a.sit ?? 0), walk, bob: walk != null ? -Math.abs(Math.sin(walk)) * 1.4 : a.hop ? -Math.abs(Math.sin(t * a.hop)) * 3 : Math.sin(t * 2.4 + hash(a.id) * 9) * 0.35,
     };
     const alpha = keyAt(a.keys, t, 'alpha', a.alpha ?? 1); if (alpha <= 0.001) { a._xy = null; return; }
-    w.save(); w.globalAlpha = alpha; w.translate(x, y); w.scale(s * (a.flip ? -1 : 1), s);
+    const rot = keyAt(a.keys, t, 'rot', 0), yAdj = keyAt(a.keys, t, 'dy', 0);
+    w.save(); w.globalAlpha = alpha; w.translate(x, y + yAdj); if (rot) w.rotate(rot * Math.PI / 180); w.scale(s * (a.flip ? -1 : 1), s);
     // a sack of the rule's stones on the back (tl.counter.pack): grows with the count; the carrier stoops
     const packV = tl.counter?.pack && led && a.pack !== false && spec.kind !== 'baby' ? Math.max(0, led.v) : 0;
     const bend = a.bend ?? Math.min(1, packV / 40);
@@ -148,11 +186,17 @@ export function painter(tl) {
     else {
       const r = drawCharacter(w, spec, {...st, armsFront: !!a.armsFront});
       top = r.headTop; a._hy = r.headY;
-      const fl = a.flip ? -1 : 1; a._hands = {}; r.arms.forEach(({W: h}, i) => { a._hands[i ? 'R' : 'L'] = [x + fl * h[0] * s, y + (h[1] + r.drop + r.bob) * s]; }); // world hand positions, for held props
+      const fl = a.flip ? -1 : 1, cr = Math.cos(rot * Math.PI / 180), sr = Math.sin(rot * Math.PI / 180), yy = y + yAdj;
+      const rt = (lx, ly) => [x + lx * cr - ly * sr, yy + lx * sr + ly * cr]; // local (px, pivot at the feet) -> world
+      a._rt = rt; a._hdx = r.headDx || 0;
+      a._hands = {}; r.arms.forEach(({W: h}, i) => { a._hands[i ? 'R' : 'L'] = rt(fl * h[0] * s, (h[1] + r.drop + r.bob) * s); }); // world hand positions, for held props
       a._arms = r; // arms drawn later when armsFront (over a hug partner)
     }
     w.filter = 'none'; w.restore();
-    a._alpha = alpha; a._top = [x, y + top * s]; a._headR = spec.kind === 'baby' ? 11 : bodyMetrics(spec).head; a._head = [x, y + (spec.kind === 'baby' ? -4 : a._hy ?? bodyMetrics(spec).headY) * s]; a._s = s; a._sat = sat; a._led = led; a._xy = [x, y]; a._st = st; a._spec = spec;
+    a._alpha = alpha; a._headR = spec.kind === 'baby' ? 11 : bodyMetrics(spec).head;
+    if (a._rt) { const fl = a.flip ? -1 : 1; a._top = a._rt(fl * (a._hdx || 0) * s, top * s); a._head = a._rt(fl * (a._hdx || 0) * s, (a._hy ?? bodyMetrics(spec).headY) * s); }
+    else { a._top = [x, y + yAdj + top * s]; a._head = [x, y + yAdj + (spec.kind === 'baby' ? -4 : a._hy ?? bodyMetrics(spec).headY) * s]; }
+    if (spec.kind === 'baby') a._rt = null; a._s = s; a._sat = sat; a._led = led; a._xy = [x, y]; a._st = st; a._spec = spec;
   }
   function drawFrontArms(a) {
     if (!a.armsFront || !a._arms) return;
@@ -234,7 +278,7 @@ export function painter(tl) {
     o.fillStyle = col; o.shadowColor = col; o.shadowBlur = 14; o.fillText(String(v), pw / 2 - 18, 3); o.shadowBlur = 0; o.textAlign = 'left';
     o.restore();
     const q = (t - changeT) / 0.95;
-    if (delta && q >= 0 && q < 1 && !a.noDelta && changeT >= (a._shotStart ?? -9) - 0.05) {
+    if (delta && q >= 0 && q < 1 && !a.noDelta && !(a.noDeltaWin || []).some(([p0, p1]) => changeT >= p0 && changeT <= p1) && changeT >= (a._shotStart ?? -9) - 0.05) {
       o.save(); o.globalAlpha = 1 - q * q; o.translate(cx + hw * 0.55, Math.max(SAFE_TOP - 20, cy - hh - 18 * cs - q * 70 * cs)); o.scale(cs, cs);
       o.font = `60px ${tl.captionFont || 'R1Caption'}`; o.textAlign = 'center'; o.lineWidth = 10; o.strokeStyle = INK; o.lineJoin = 'round';
       const txt = (delta > 0 ? '+' : '') + delta, good = (tl.counter?.bad === 'up') ? delta < 0 : delta > 0;
@@ -297,6 +341,10 @@ export function painter(tl) {
         else { w.fillStyle = ['#ffd23f', '#ffffff', '#ff9f1c'][i % 3]; const st = new Path2D(); for (let k = 0; k < 8; k++) { const r = k % 2 ? 6 : 18, a = k * Math.PI / 4; st.lineTo(Math.cos(a) * r, Math.sin(a) * r); } st.closePath(); w.fill(st); }
         w.restore();
       }
+    }
+    if (f.type === 'dust') { // a puff of dust where someone hits the ground: tan circles that grow and fade
+      const q = (t - f.t0) / (f.d || 0.8); if (q >= 0 && q <= 1) for (let i = 0; i < (f.n || 7); i++) { const dir = (i / ((f.n || 7) - 1) - 0.5) * 2, r = (20 + 26 * hash(i + 'd')) * (0.6 + q * 1.6) * (f.k || 1);
+        w.save(); w.globalAlpha = 0.75 * (1 - q); w.fillStyle = '#ecd6ad'; w.beginPath(); w.arc(f.x + dir * 150 * easeOut(q) * (f.k || 1), f.y - 14 - q * 36 - hash(i) * 18, r, 0, 7); w.fill(); w.lineWidth = 4; w.strokeStyle = 'rgba(42,33,30,.55)'; w.stroke(); w.restore(); }
     }
     if (f.type === 'stoneDrop') { // a stone falls into the actor's sack (rule: a grudge becomes a stone)
       const A = find(f.actor), q = (t - f.t0) / 0.38; if (!A?._xy || q < 0 || q > 1.3) return;

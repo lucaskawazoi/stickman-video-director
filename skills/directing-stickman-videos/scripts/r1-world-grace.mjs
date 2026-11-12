@@ -249,6 +249,27 @@ export const GRACE_SETS = {
       fs(ctx, rr(420, 1300, 240, 40, 6), WARM.stone, 4);
     };
   },
+  // a village race up a hillside, seen from the side: the track is the line y = 1640 − 0.38·x (feet go on it; see RACE_Y).
+  // banner: text on a cloth banner high on the hill; bunting along the sky; the village roofs on the ridge.
+  gRace({time = 'noon', banner = null, bunting = true} = {}) {
+    return ctx => {
+      sky(ctx, time);
+      const Y = x => 1640 - 0.38 * x;
+      fs(ctx, poly([[0, 1010], [260, 880], [560, 780], [820, 700], [1080, 650], [1080, 1920], [0, 1920]]), time === 'night' ? '#4c3a52' : '#e0bd7c', 5); // far slope
+      for (const [x, y, w, c] of [[640, 640, 150, WARM.plaster[0]], [800, 600, 170, WARM.plaster[2]], [960, 560, 150, WARM.plaster[3]]]) { fs(ctx, rr(x, y, w, 110, 4), c, 5); fs(ctx, poly([[x - 12, y + 6], [x + w / 2, y - 62], [x + w + 12, y + 6]]), WARM.roof, 5); fs(ctx, rr(x + w / 2 - 14, y + 44, 28, 66, 12), WARM.wood, 4); }
+      olive(ctx, 560, 800, 0.55); olive(ctx, 1030, 700, 0.5);
+      fs(ctx, poly([[0, 1180], [300, 1070], [700, 930], [1080, 800], [1080, 1920], [0, 1920]]), time === 'night' ? '#5b4660' : '#d4ac6a', 5); // near slope
+      const path = new Path2D(); path.moveTo(-20, Y(-20) - 90); for (let x = 0; x <= 1100; x += 110) path.lineTo(x, Y(x) - 90 + x * 0.025); for (let x = 1100; x >= -20; x -= 110) path.lineTo(x, Y(x) + 75 - x * 0.02); path.closePath();
+      fs(ctx, path, '#f0dcb4', 5);
+      ctx.strokeStyle = dark('#ecd6ad', 0.14); ctx.lineWidth = 4; ctx.lineCap = 'round'; for (let x = 40; x < 1080; x += 130) { ctx.beginPath(); ctx.moveTo(x, Y(x) + 30); ctx.lineTo(x + 54, Y(x + 54) + 30); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(120,80,40,.14)'; for (let i = 0; i < 36; i++) ctx.fill(el(hashN(i) * 1080, 1250 + hashN(i + 7) * 650, 36, 7));
+      olive(ctx, 120, 1260, 1.05); olive(ctx, 1000, 1010, 0.8);
+      if (bunting) { ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-10, 560); ctx.quadraticCurveTo(540, 760, 1090, 520); ctx.stroke();
+        const cols = ['#c4643a', '#f4b942', '#7c8f4a', '#fbf1dc', '#5a7fb0']; for (let i = 0; i < 13; i++) { const q = (i + 0.5) / 13, bx = -10 + q * 1100, by = (1 - q) * (1 - q) * 560 + 2 * q * (1 - q) * 760 + q * q * 520 - 6; fs(ctx, poly([[bx - 24, by], [bx + 24, by], [bx, by + 62]]), cols[i % 5], 4); } }
+      if (banner) { fs(ctx, rr(205, 690, 14, 380, 4), WARM.woodD, 4); fs(ctx, rr(861, 690, 14, 380, 4), WARM.woodD, 4); fs(ctx, rr(190, 700, 700, 130, 14), '#c4643a', 6); ctx.fillStyle = WARM.cream; ctx.font = '88px GraceCaption'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(banner, 540, 768); ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; }
+      if (SHADE[time]) { ctx.fillStyle = SHADE[time]; ctx.fillRect(0, 0, 1080, 1920); }
+    };
+  },
   // a hill path up to the market (stalls with awnings at the top), olive trees; time like gLane
   gHill({time = 'gold'} = {}) {
     return ctx => {
@@ -379,7 +400,25 @@ export const GRACE_PROPS = {
   // n stars crowded into an ellipse w × h around the origin; fractional n pops the next one in; total fixes the layout
   starField(ctx, args = {}) { starField(ctx, args); },
   // a card of nights counted: NIGHT / n
-  calendarN(ctx, {n = 1} = {}) { fs(ctx, rr(-110, -120, 220, 240, 14), '#fbf1dc', 5); fs(ctx, rr(-110, -120, 220, 60, 14), '#c4643a', 5); ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.font = '48px GraceCaption'; ctx.fillText('NIGHT', 0, -72 + 4); ctx.font = '120px GraceCaption'; ctx.fillText(String(n), 0, 64); ctx.textAlign = 'left'; },
+  calendarN(ctx, {n = 1, label = 'NIGHT'} = {}) { fs(ctx, rr(-110, -120, 220, 240, 14), '#fbf1dc', 5); fs(ctx, rr(-110, -120, 220, 60, 14), '#c4643a', 5); ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.font = '48px GraceCaption'; ctx.fillText(label, 0, -72 + 4); ctx.font = '120px GraceCaption'; ctx.fillText(String(n), 0, 64); ctx.textAlign = 'left'; },
+  // the finish: two posts and a banner across the path (origin = the foot of the line, on the track); finishTape = a ribbon across
+  // the line, drawn in FRONT of the runners; k 0..1 tears it (two streamers fly off)
+  finishG(ctx, {text = 'FINISH'} = {}) {
+    fs(ctx, rr(-210, -620, 18, 640, 4), WARM.woodD, 4); fs(ctx, rr(192, -620, 18, 640, 4), WARM.woodD, 4);
+    fs(ctx, rr(-230, -660, 460, 120, 14), '#fbf1dc', 6); ctx.fillStyle = INK; ctx.font = '86px GraceCaption'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 0, -598); ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    // the line itself: a chequered strip across the track (the track runs left-right, so the strip is tall and narrow)
+    ctx.save(); ctx.beginPath(); ctx.rect(-18, -96, 36, 176); ctx.clip();
+    for (let i = 0; i < 11; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? INK : '#fbf1dc'; ctx.fillRect(-18 + j * 18, -96 + i * 16, 18, 16); }
+    ctx.restore(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeRect(-18, -96, 36, 176);
+  },
+  finishTape(ctx, {k = 0} = {}) {
+    const H = 520, col = '#e2574c';
+    if (k <= 0) { fs(ctx, rr(-7, -H, 14, H - 8, 3), col, 3); ctx.fillStyle = '#fbf1dc'; for (let y = -H + 20; y < -40; y += 56) ctx.fillRect(-7, y, 14, 16); return; }
+    const q = Math.min(1, k); // torn: two short streamers flutter down and fade
+    for (const sg of [-1, 1]) { ctx.save(); ctx.globalAlpha = Math.max(0, 1 - q * 1.1); ctx.translate(sg * 6, -H + 30 + q * 120); ctx.rotate(sg * (0.2 + q * 0.5)); fs(ctx, rr(-7, 0, 14, H * 0.3, 3), col, 3); ctx.restore(); }
+  },
+  // three loaves on a board (origin = the board's centre, top edge)
+  loaves(ctx, {w = 520} = {}) { fs(ctx, rr(-w / 2, 0, w, 26, 8), WARM.wood, 5); for (const [x, r] of [[-w * 0.3, 0.2], [0, -0.1], [w * 0.3, 0.15]]) { ctx.save(); ctx.translate(x, -34); ctx.rotate(r); fs(ctx, el(0, 0, 92, 36), '#d9a066', 5); ctx.strokeStyle = '#a9733a'; ctx.lineWidth = 4; for (const k of [-44, -10, 24]) { ctx.beginPath(); ctx.moveTo(k, -22); ctx.lineTo(k + 18, 10); ctx.stroke(); } ctx.restore(); } },
   // a wooden signpost, origin at its foot
   signpost(ctx, {text = 'CYPRESS LANE'} = {}) { fs(ctx, rr(-9, -300, 18, 300, 4), WARM.woodD, 4); fs(ctx, rr(-190, -330, 380, 96, 12), WARM.wood, 5); ctx.fillStyle = WARM.cream; ctx.font = '58px GraceCaption'; ctx.textAlign = 'center'; ctx.fillText(text, 0, -262); ctx.textAlign = 'left'; },
   // a patchwork quilt over someone's lap in bed (origin = top centre)
