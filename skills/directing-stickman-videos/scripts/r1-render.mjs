@@ -12,6 +12,7 @@ import {drawCharacter, drawBaby, bodyMetrics, POSES, EXPR, INK, PLANS} from './r
 import {SETS, PROPS} from './r1-world.mjs';
 import './r1-world-grace.mjs'; // grace-remains sets/props register themselves
 import './r1-world-grace-bakery.mjs'; // ep8 flowers, bakery, bus, scientist props
+import './r1-world-grace-clouds.mjs'; // ep9 clouds, rain, umbrella, Hale's street
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 GlobalFonts.registerFromPath(path.join(ROOT, 'assets/r1/fonts/Anton-Regular.ttf'), 'R1Caption');
@@ -533,7 +534,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const [a, b] = opt('--worker').split(':').map(Number);
     await encode(tl, painter(tl), a, b, path.join(out, `seg-${String(a).padStart(6, '0')}.mp4`));
   } else {
-    const workers = Number(opt('--workers') || Math.max(2, os.cpus().length - 4)), per = Math.ceil(total / workers);
+    const workers = Number(opt('--workers') || process.env.R1_WORKERS || 3), per = Math.ceil(total / workers);
     for (const f of fs.readdirSync(out)) if (f.startsWith('seg-')) fs.unlinkSync(path.join(out, f));
     const t0 = Date.now();
     await Promise.all(Array.from({length: workers}, (_, k) => [k * per, Math.min(total, (k + 1) * per)]).filter(([a, b]) => b > a).map(([a, b]) => new Promise((res, rej) => {
