@@ -63,6 +63,8 @@ export const EXPR = {
   love: {brow: -4, browY: -1, mouth: 'smile', curve: 1, lid: 0, closed: 'happy'},
   sleep: {brow: 0, browY: 1, mouth: 'smile', curve: 0.1, lid: 0, closed: 'sleep'},
   grey: {brow: 6, browY: 1, mouth: 'flat', curve: 0, lid: 0.45},
+  calm: {brow: -3, browY: 0, mouth: 'smile', curve: 0.75, lid: 0.04},
+  look: {brow: -10, browY: -3, mouth: 'smile', curve: 0.8, lid: 0},
   firm: {brow: 8, browY: 1, mouth: 'flat', curve: 0, lid: 0.3},
 };
 

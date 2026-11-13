@@ -243,7 +243,7 @@ export function painter(tl) {
     if (hx < -60 || hx > W + 60 || hc < -100 || hc > H + 60) return; // only characters in frame carry a counter
     const r = (a._headR || 15) * a._s * cam.z;
     let cx = hx + (a.counterDx || 0) * cam.z, cy = hy - (a.counterGap ?? 0) * cam.z - hh - 14;
-    if (cy - hh < SAFE_TOP) { // no room above the head
+    if (cy - hh < SAFE_TOP && !a.counterAbove) { // no room above the head
       const right = hx + r + 24 + 2 * hw < W - SAFE_X, left = hx - r - 24 - 2 * hw > SAFE_X;
       if (right || left) { cx = hx + (right ? r + 24 + hw : -(r + 24 + hw)); cy = Math.max(SAFE_TOP + hh, hc - r * 0.2); }
       else { cx = hx; cy = hc + r * 1.25 + hh; } // under the chin
