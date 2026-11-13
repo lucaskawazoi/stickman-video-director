@@ -121,20 +121,20 @@ function chasmG(ctx, {k = 1, cx = 540, hw = 170, y = 1400, t = 0} = {}) {
 
 // the bridge: x0..x1 split into `total` planks; planks = [{i, k}] present (k < 1 = still falling in). stringer = a beam under the deck.
 // rail = rope handrail over each run of planks. heads = the two posts at the ends. th = plank thickness. Origin = world (0, 0).
-function bridgeG(ctx, {x0 = 370, x1 = 710, y = 1400, total = 7, planks = [], stringer = false, rail = false, heads = true, th = 26, tilt = 0, t = 0, drop = 260} = {}) {
-  const w = (x1 - x0) / total, thin = w < 14, cols = ['#d9a066', '#c98f5a', '#e0ad74'], lw = thin ? 2.4 : 4;
+function bridgeG(ctx, {x0 = 370, x1 = 710, y = 1400, total = 7, planks = [], stringer = false, rail = false, heads = true, th = 26, tilt = 0, t = 0, drop = 260, fat = 0} = {}) {
+  const w0 = (x1 - x0) / total, half = total / 2, wi = i => fat && i < half ? fat : w0, X = i => fat && i < half ? x0 + i * fat : x0 + i * w0, w = w0, thin = w0 < 14 && !fat, cols = ['#d9a066', '#c98f5a', '#e0ad74'], lw = thin ? 2.4 : 4;
   if (heads) for (const [px, sg] of [[x0 - 12, -1], [x1 + 12, 1]]) { fs(ctx, rr(px - 11, y - 52, 22, 78, 5), WARM.woodD, 4); fs(ctx, el(px + sg * 0, y - 52, 13, 8), '#8a5a36', 3); }
   const full = planks.filter(p => p.k >= 1).map(p => p.i).sort((a, b) => a - b);
-  if (stringer && full.length) { let a = full[0], b = a; const runs = []; for (const i of full.slice(1)) { if (i === b + 1) b = i; else { runs.push([a, b]); a = b = i; } } runs.push([a, b]); for (const [a2, b2] of runs) fs(ctx, rr(x0 + a2 * w - 2, y + th - 3, (b2 - a2 + 1) * w + 4, 9, 3), WARM.woodD, 2.6); }
+  if (stringer && full.length) { let a = full[0], b = a; const runs = []; for (const i of full.slice(1)) { if (i === b + 1) b = i; else { runs.push([a, b]); a = b = i; } } runs.push([a, b]); for (const [a2, b2] of runs) fs(ctx, rr(X(a2) - 2, y + th - 3, X(b2) + wi(b2) - X(a2) + 4, 9, 3), WARM.woodD, 2.6); }
   for (const {i, k} of [...planks].sort((a, b) => a.k - b.k)) {
-    const kk = clamp(k), fall = kk < 1 ? -(1 - kk) * (1 - kk) * drop : 0, a = kk < 1 ? clamp(kk * 3) : 1, x = x0 + i * w, s = kk < 1 ? 1.25 : 1;
-    ctx.save(); ctx.globalAlpha *= a; ctx.translate(x + w / 2, y + th / 2 + fall); ctx.rotate(kk < 1 ? (1 - kk) * 0.6 * (i % 2 ? 1 : -1) : tilt); ctx.scale(s, s);
-    fs(ctx, rr(-w / 2 + 0.7, -th / 2, w - 1.4, th, thin ? 2 : 5), cols[i % 3], lw);
-    if (!thin) { ctx.strokeStyle = 'rgba(90,55,25,.45)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-w * 0.2, -th * 0.25); ctx.lineTo(w * 0.22, -th * 0.25); ctx.moveTo(-w * 0.25, th * 0.15); ctx.lineTo(w * 0.15, th * 0.15); ctx.stroke(); fs(ctx, el(-w * 0.36, 0, 3.5, 3.5), INK, 0); fs(ctx, el(w * 0.36, 0, 3.5, 3.5), INK, 0); }
+    const kk = clamp(k), fall = kk < 1 ? -(1 - kk) * (1 - kk) * drop : 0, a = kk < 1 ? clamp(kk * 3) : 1, pw = wi(i), pth = fat && i < half ? Math.max(th, 30) : th, x = X(i), s = kk < 1 ? 1.25 : 1;
+    ctx.save(); ctx.globalAlpha *= a; ctx.translate(x + pw / 2, y + th / 2 + fall); ctx.rotate(kk < 1 ? (1 - kk) * 0.6 * (i % 2 ? 1 : -1) : tilt); ctx.scale(s, s);
+    const big = pw > 30; fs(ctx, rr(-pw / 2 + 0.7, -pth / 2, pw - 1.4, pth, thin ? 2 : 5), cols[i % 3], lw);
+    if (!thin) { ctx.strokeStyle = 'rgba(90,55,25,.5)'; ctx.lineWidth = big ? 3.5 : 3; ctx.beginPath(); if (big) { for (const [fy, a1, b1] of [[-0.28, -0.38, 0.4], [0.02, -0.42, 0.3], [0.3, -0.3, 0.42]]) { ctx.moveTo(pw * a1, pth * fy); ctx.quadraticCurveTo(0, pth * fy + 3, pw * b1, pth * fy - 1); } } else { ctx.moveTo(-pw * 0.2, -pth * 0.25); ctx.lineTo(pw * 0.22, -pth * 0.25); ctx.moveTo(-pw * 0.25, pth * 0.15); ctx.lineTo(pw * 0.15, pth * 0.15); } ctx.stroke(); fs(ctx, el(-pw * 0.36, 0, big ? 4.5 : 3.5, big ? 4.5 : 3.5), INK, 0); fs(ctx, el(pw * 0.36, 0, big ? 4.5 : 3.5, big ? 4.5 : 3.5), INK, 0); }
     ctx.restore();
   }
   if (rail && full.length) { let a = full[0], b = a; const runs = []; for (const i of full.slice(1)) { if (i === b + 1) b = i; else { runs.push([a, b]); a = b = i; } } runs.push([a, b]);
-    for (const [a2, b2] of runs) { const xa = x0 + a2 * w + 3, xb = x0 + (b2 + 1) * w - 3, n = Math.max(1, Math.round((xb - xa) / 90)), xs = Array.from({length: n + 1}, (_, q) => xa + (xb - xa) * q / n);
+    for (const [a2, b2] of runs) { const xa = X(a2) + 3, xb = X(b2) + wi(b2) - 3, n = Math.max(1, Math.round((xb - xa) / 90)), xs = Array.from({length: n + 1}, (_, q) => xa + (xb - xa) * q / n);
       ctx.strokeStyle = INK; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.beginPath(); xs.forEach((px, q) => q ? ctx.quadraticCurveTo((xs[q - 1] + px) / 2, y - 62 + 16, px, y - 70) : ctx.moveTo(px, y - 70)); ctx.stroke();
       ctx.strokeStyle = '#d9b98a'; ctx.lineWidth = 3.5; ctx.beginPath(); xs.forEach((px, q) => q ? ctx.quadraticCurveTo((xs[q - 1] + px) / 2, y - 62 + 16, px, y - 70) : ctx.moveTo(px, y - 70)); ctx.stroke();
       for (const px of xs) fs(ctx, rr(px - 4, y - 74, 8, 78, 2), WARM.woodD, 2.6); }
@@ -149,17 +149,17 @@ function goatG(ctx, {t = 0, dir = 1, eat = 0, bleat = 0, walk = 0, fish = 0, s =
   leg(-70, 0, '#d9c8a8'); leg(62, Math.PI, '#d9c8a8');
   ctx.save(); ctx.translate(-104, -128 + bob); ctx.rotate(Math.sin(t * 7) * 0.2 - 0.3); fs(ctx, poly([[0, 0], [30, -34], [24, 10]]), body, 3.5); ctx.restore(); // tail
   fs(ctx, rr(-108, -158 + bob, 208, 104, 46), body, 5);
-  ctx.save(); ctx.clip(rr(-108, -158 + bob, 208, 104, 46)); ctx.fillStyle = patch; ctx.fillRect(-120, -160 + bob, 80, 110); ctx.globalAlpha = 0.5; ctx.fillRect(60, -160 + bob, 50, 40); ctx.restore();
+  ctx.save(); ctx.clip(rr(-108, -158 + bob, 208, 104, 46)); ctx.fillStyle = patch; ctx.globalAlpha = 0.32; ctx.fillRect(-120, -100 + bob, 230, 40); ctx.restore();
   leg(-38, Math.PI, body); leg(92, 0, body);
   const hx = 118, hy = -176 + bob + eat * 74, rot = eat * 0.55 - (bleat ? 0.28 : 0);
   fs(ctx, poly([[70, -150 + bob], [96, -168 + bob], [hx + 6, hy + 8], [hx - 24, hy + 30]]), body, 4.5); // neck
   ctx.save(); ctx.translate(hx, hy); ctx.rotate(rot);
-  for (const hdx of [-8, 14]) { ctx.strokeStyle = INK; ctx.lineWidth = 19; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hdx, -22); ctx.quadraticCurveTo(hdx - 6, -92, hdx - 52, -84); ctx.stroke(); ctx.strokeStyle = '#e0cf9e'; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(hdx, -22); ctx.quadraticCurveTo(hdx - 6, -92, hdx - 52, -84); ctx.stroke(); }
+  for (const hdx of [-8, 14]) { ctx.strokeStyle = INK; ctx.lineWidth = 19; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hdx, -22); ctx.quadraticCurveTo(hdx - 2, -122, hdx - 58, -112); ctx.stroke(); ctx.strokeStyle = '#e0cf9e'; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(hdx, -22); ctx.quadraticCurveTo(hdx - 2, -122, hdx - 58, -112); ctx.stroke(); }
   fs(ctx, el(-22, -6, 22, 12, -0.7), '#e8d3b0', 3.5); // ear
   fs(ctx, el(0, 0, 38, 30, 0.1), body, 5); fs(ctx, rr(14, -4, 52, 36, 16), '#ecdcc0', 4.5); // head and muzzle
   const jaw = bleat ? 14 + Math.sin(t * 20) * 4 : eat ? Math.abs(Math.sin(t * 11)) * 9 : 0; if (jaw) { fs(ctx, el(48, 24 + jaw * 0.3, 20, 5 + jaw * 0.6), '#5a2a2a', 3); }
   ctx.fillStyle = INK; ctx.fill(el(60, 6, 4, 3)); ctx.fill(el(22, -8, 5.5, 7)); ctx.fillStyle = '#e6d255'; ctx.fill(el(22, -8, 3.4, 4.6)); ctx.fillStyle = INK; ctx.fill(el(22.6, -8, 3, 1.4)); // nostril, eye (horizontal pupil)
-  fs(ctx, poly([[40, 34], [58, 34], [48, 64]]), '#e8dcc6', 3.5); // beard
+  fs(ctx, poly([[38, 32], [60, 32], [50, 92]]), '#f4ecd8', 3.5); // beard
   if (fish) { ctx.save(); ctx.translate(58, 24 + jaw * 0.3); ctx.rotate(0.2 + Math.sin(t * 9) * 0.1); PROPS.fish(ctx, {color: '#8fa3b0'}); ctx.restore(); }
   ctx.restore(); ctx.restore();
 }
