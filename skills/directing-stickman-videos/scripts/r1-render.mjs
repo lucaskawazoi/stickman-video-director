@@ -11,6 +11,7 @@ import {createCanvas, GlobalFonts, Path2D} from '@napi-rs/canvas';
 import {drawCharacter, drawBaby, bodyMetrics, POSES, EXPR, INK, PLANS} from './r1-rig.mjs';
 import {SETS, PROPS} from './r1-world.mjs';
 import './r1-world-grace.mjs'; // grace-remains sets/props register themselves
+import './r1-world-grace-bakery.mjs'; // ep8 flowers, bakery, bus, scientist props
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 GlobalFonts.registerFromPath(path.join(ROOT, 'assets/r1/fonts/Anton-Regular.ttf'), 'R1Caption');
@@ -229,7 +230,8 @@ export function painter(tl) {
       if (near && dt(near) < near.r * 0.85) add('bubble-tail-in-face', b.actor, near.a.id); }
     for (const h of heads) for (const [k, hp] of Object.entries(h.a._hands || {})) { // a hand on someone else's face reads as a blow
       const [sx, sy] = toScreen(cam, hp);
-      for (const g of heads) if (g !== h && Math.hypot(g.hx - sx, g.hy - sy) < g.r * 1.65) add('hand-on-face', h.a.id + '.' + k, g.a.id); }
+      for (const g of heads) if (g !== h && Math.hypot(g.hx - sx, g.hy - sy) < g.r * 1.65) add('hand-on-face', h.a.id + '.' + k, g.a.id);
+      if (tl._lintOwn && Math.hypot(h.hx - sx, h.hy - sy) < h.r * 1.2) add('hand-on-own-head', h.a.id + '.' + k, h.a.id); } // opt-in (--own): a character's own hands on its own head
     for (const ti of shot.titles || []) { if (t < ti.t0 || t >= (ti.t1 ?? 1e9)) continue; // approximate box: full card width, lines × line height
       const n = String(ti.text).split('\n').length, hh = n * (ti.size || 60) * (ti.lh || 1.15) / 2 + (ti.card ? 40 : 6);
       for (const g of heads) if (hit([W / 2, ti.y, ti.card ? 470 : 380, hh], g, 0.6)) add('title-on-face', 'title', g.a.id); }
@@ -516,7 +518,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     mixAudio({...tl, duration: total / tl.fps}, path.join(out, 'video-silent.mp4'), path.join(out, opt('--name') || 'episodio.mp4'));
     console.log('remix ok');
   } else if (process.argv.includes('--lint')) { // sample every 0.1 s, group the hits per shot
-    const frame = painter(tl); tl._lint = [];
+    const frame = painter(tl); tl._lint = []; tl._lintOwn = process.argv.includes('--own');
     for (let t = 0; t < tl.duration; t += 0.1) frame(+t.toFixed(2));
     const g = {}; for (const h of tl._lint) { const k = [h.shot.toFixed(2), h.kind, h.who, h.on].join('|'); (g[k] ||= {first: h.t, last: h.t, n: 0}); g[k].last = h.t; g[k].n++; }
     const rows = Object.entries(g).filter(([, v]) => v.n >= 3).map(([k, v]) => { const [sh, kind, who, on] = k.split('|'); return {t0: +v.first.toFixed(1), t1: +v.last.toFixed(1), kind, who, on, shot: +sh}; }).sort((a, b) => a.t0 - b.t0);

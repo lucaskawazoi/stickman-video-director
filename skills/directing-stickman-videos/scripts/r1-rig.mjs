@@ -37,6 +37,7 @@ export const POSES = {
   cheeks: {L: [30, -150], R: [30, -150]},
   face: {L: [20, -160], R: [20, -160]},
   hold: {L: [25, -95], R: [25, -95]},
+  fold: {L: [22, -118], R: [22, -118]},   // arms folded across the chest (hands stay below the chin)
   knock: {L: [10, 4], R: [70, 60]},
   reach: {L: [10, 4], R: [70, 15]},
   hugR: {L: [55, -40], R: [80, 20]},      // hugging someone on the screen-right

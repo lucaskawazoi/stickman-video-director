@@ -5,7 +5,7 @@ import {INK, mix, dark, light} from './r1-rig.mjs';
 import {SETS, PROPS} from './r1-world.mjs';
 
 const OL = 5;
-function fs(ctx, p, fill, w = OL) { if (fill) { ctx.fillStyle = fill; ctx.fill(p); } if (w) { ctx.lineWidth = w; ctx.strokeStyle = INK; ctx.lineJoin = 'round'; ctx.stroke(p); } }
+export function fs(ctx, p, fill, w = OL) { if (fill) { ctx.fillStyle = fill; ctx.fill(p); } if (w) { ctx.lineWidth = w; ctx.strokeStyle = INK; ctx.lineJoin = 'round'; ctx.stroke(p); } }
 const rr = (x, y, w, h, r) => { const p = new Path2D(); p.roundRect(x, y, w, h, r); return p; };
 const el = (x, y, rx, ry, rot = 0) => { const p = new Path2D(); p.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); return p; };
 const poly = pts => { const p = new Path2D(); p.moveTo(...pts[0]); for (const q of pts.slice(1)) p.lineTo(...q); p.closePath(); return p; };
@@ -509,3 +509,5 @@ export const GRACE_PROPS = {
 
 Object.assign(SETS, GRACE_SETS);
 Object.assign(PROPS, GRACE_PROPS);
+
+export {rr, el, poly, hashN, glow, cobbles, olive, sky, room, windowPane, lamp, cottage, easeOutBack, SKY, SHADE};
