@@ -13,6 +13,7 @@ import {SETS, PROPS} from './r1-world.mjs';
 import './r1-world-grace.mjs'; // grace-remains sets/props register themselves
 import './r1-world-grace-bakery.mjs'; // ep8 flowers, bakery, bus, scientist props
 import './r1-world-grace-clouds.mjs'; // ep9 clouds, rain, umbrella, Hale's street
+import './r1-world-grace-bridge.mjs'; // ep10 chasm, plank bridge, Willow Creek, flood, goat
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 GlobalFonts.registerFromPath(path.join(ROOT, 'assets/r1/fonts/Anton-Regular.ttf'), 'R1Caption');
