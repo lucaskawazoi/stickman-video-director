@@ -113,7 +113,7 @@ export function painter(tl) {
     const cv = a.crown && led ? led.cont : null, popQ = led ? (t - led.changeT) / 0.32 : 2;
     const thud = popQ >= 0 && popQ < 1 && led.delta && !a.noThud ? Math.sin(popQ * Math.PI) * Math.sign(led.delta) : 0;
     const stoopK = keyAt(a.keys, t, 'stoop', undefined), stoopA = cv != null ? Math.max(0, Math.min(1, (cv - 6) / 34)) * 0.95 : 0;
-    return {spec, led, cv, thud, stoop: Math.max(0, (stoopK ?? stoopA) + 0.3 * thud), lean: keyAt(a.keys, t, 'lean', a.lean || 0), rot: keyAt(a.keys, t, 'rot', 0), dyAdj: keyAt(a.keys, t, 'dy', 0),
+    return {spec, led, cv, thud, stoop: Math.max(0, (stoopK ?? stoopA) + 0.3 * thud), lean: keyAt(a.keys, t, 'lean', a.lean || 0), rot: keyAt(a.keys, t, 'rot', 0), sit: keyAt(a.keys, t, 'sit', a.sit ?? 0), dyAdj: keyAt(a.keys, t, 'dy', 0),
       x: keyAt(a.keys, t, 'x', a.x), y: keyAt(a.keys, t, 'y', a.y), s: keyAt(a.keys, t, 's', a.s || 7), fl: a.flip ? -1 : 1};
   }
   const toRad = d => d * Math.PI / 180;
@@ -121,6 +121,7 @@ export function painter(tl) {
   function localToWorld(tg, t, [ux, uy], upper) {
     const k = kin(tg, t); let px = ux, py = uy;
     if (upper && (k.lean || k.stoop)) { const hip = bodyMetrics(k.spec).hipY, dy = (py - hip) * (1 - 0.2 * k.stoop), th = toRad(k.lean); px = ux * Math.cos(th) - dy * Math.sin(th); py = hip + ux * Math.sin(th) + dy * Math.cos(th); }
+    py += (k.sit || 0) * PLANS[k.spec.plan || 'adult'].leg * 0.45; // seated: the body sinks
     const cr = Math.cos(toRad(k.rot)), sr = Math.sin(toRad(k.rot)), X = px * k.fl * k.s, Y = py * k.s;
     return [k.x + X * cr - Y * sr, k.y + k.dyAdj + X * sr + Y * cr];
   }
@@ -128,7 +129,7 @@ export function painter(tl) {
   function armToward(a, t, k, hand, P) {
     const spec = k.spec, Pl = PLANS[spec.plan || 'adult'], sg = hand === 'L' ? -1 : 1, M = bodyMetrics(spec);
     const cr = Math.cos(toRad(k.rot)), sr = Math.sin(toRad(k.rot)), dx = P[0] - k.x, dy = P[1] - k.y - k.dyAdj;
-    let lx = (dx * cr + dy * sr) / k.s * k.fl, ly = (-dx * sr + dy * cr) / k.s;
+    let lx = (dx * cr + dy * sr) / k.s * k.fl, ly = (-dx * sr + dy * cr) / k.s - (k.sit || 0) * Pl.leg * 0.45;
     if (k.lean || k.stoop) { const hip = M.hipY, th = toRad(k.lean), ux = lx, uy = ly - hip; lx = ux * Math.cos(th) + uy * Math.sin(th); ly = hip + (-ux * Math.sin(th) + uy * Math.cos(th)) / (1 - 0.2 * k.stoop); }
     const Sx = sg * (Pl.sw / 2 - 1.8), Sy = -(Pl.leg + Pl.torso) + 2 + 1.2, tx = sg * (lx - Sx), ty = ly - Sy, u = Pl.upper, f = Pl.fore;
     const d = Math.min(u + f - 0.3, Math.max(Math.abs(u - f) + 0.3, Math.hypot(tx, ty))), beta = Math.atan2(tx, ty), g = Math.acos(Math.max(-1, Math.min(1, (u * u + d * d - f * f) / (2 * u * d))));

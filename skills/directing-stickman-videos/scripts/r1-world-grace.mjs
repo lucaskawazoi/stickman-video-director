@@ -283,6 +283,17 @@ export const GRACE_SETS = {
       if (SHADE[time]) { ctx.fillStyle = SHADE[time]; ctx.fillRect(0, 0, 1080, 1920); }
     };
   },
+  // open honey sky: the payoff of looking up (never blue): warm gradient, a big sun with rays, soft clouds, a low olive ridge
+  gSkyOpen() {
+    return ctx => {
+      const g = ctx.createLinearGradient(0, 0, 0, 1800); g.addColorStop(0, '#f2b45c'); g.addColorStop(0.5, '#fbd48e'); g.addColorStop(1, '#fff3d6'); ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920);
+      ctx.save(); ctx.translate(760, 420); for (let i = 0; i < 14; i++) { ctx.rotate(Math.PI / 7); ctx.fillStyle = 'rgba(255,248,220,.22)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-60, 1500); ctx.lineTo(60, 1500); ctx.closePath(); ctx.fill(); } ctx.restore();
+      const gl = ctx.createRadialGradient(760, 420, 10, 760, 420, 520); gl.addColorStop(0, 'rgba(255,252,230,.95)'); gl.addColorStop(1, 'rgba(255,240,200,0)'); ctx.fillStyle = gl; ctx.fillRect(0, 0, 1080, 1100);
+      ctx.fillStyle = '#fffdf0'; ctx.fill(el(760, 420, 110, 110));
+      for (const [x, y, w] of [[200, 520, 230], [430, 860, 280], [850, 1000, 240], [120, 1180, 260], [620, 1360, 300]]) { ctx.fillStyle = 'rgba(255,252,240,.92)'; for (const [dx, dy, r] of [[-0.45, 0.05, 0.38], [0, -0.12, 0.5], [0.45, 0.04, 0.4], [0.1, 0.12, 0.45]]) ctx.fill(el(x + dx * w, y + dy * w * 0.5, r * w * 0.6, r * w * 0.3)); }
+      fs(ctx, poly([[0, 1760], [260, 1690], [560, 1740], [860, 1670], [1080, 1730], [1080, 1920], [0, 1920]]), '#d4ac6a', 5);
+    };
+  },
   // a village school: ochre building with a bell, big windows, a dirt yard and a fig tree
   gSchool({time = 'noon'} = {}) {
     return ctx => {
@@ -405,7 +416,8 @@ export const GRACE_PROPS = {
   // the line, drawn in FRONT of the runners; k 0..1 tears it (two streamers fly off)
   finishG(ctx, {text = 'FINISH'} = {}) {
     fs(ctx, rr(-210, -620, 18, 640, 4), WARM.woodD, 4); fs(ctx, rr(192, -620, 18, 640, 4), WARM.woodD, 4);
-    fs(ctx, rr(-230, -660, 460, 120, 14), '#fbf1dc', 6); ctx.fillStyle = INK; ctx.font = '86px GraceCaption'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 0, -598); ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-201, -600); ctx.quadraticCurveTo(0, -560, 201, -600); ctx.stroke(); // one bright pennant string, no board
+    for (let i = 0; i < 7; i++) { const q = (i + 0.5) / 7, x = -201 + q * 402, y = -600 + 40 * Math.sin(q * Math.PI) * 1.0; fs(ctx, poly([[x - 18, y], [x + 18, y], [x, y + 46]]), ['#c4643a', '#f4b942', '#fbf1dc'][i % 3], 3); }
     // the line itself: a chequered strip across the track (the track runs left-right, so the strip is tall and narrow)
     ctx.save(); ctx.beginPath(); ctx.rect(-18, -96, 36, 176); ctx.clip();
     for (let i = 0; i < 11; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? INK : '#fbf1dc'; ctx.fillRect(-18 + j * 18, -96 + i * 16, 18, 16); }
