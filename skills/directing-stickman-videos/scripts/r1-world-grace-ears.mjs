@@ -156,6 +156,14 @@ function sofaG(ctx, {w = 780, color = '#c4643a', k = 1} = {}) { // origin = bott
   fs(ctx, rr(-w * 0.3 - 56, -272, 112, 100, 28), '#f4b942', 6); fs(ctx, rr(w * 0.34 - 60, -280, 120, 110, 50), '#e8b878', 6); fs(ctx, el(w * 0.34, -226, 10, 10), '#b5552f', 4);
   ctx.restore();
 }
+// the front of the sofa's seat cushion, drawn IN FRONT of the actors: it hides their thighs so a seated actor (rig `sit`: hips sink) reads as sitting IN the sofa, shins and feet hanging below it.
+// Draw as a FRONT prop at (0,0) (world coords). args {x0, x1, top, h}: the span, the y of its top edge (= the seated actor's hip line + a few px), its thickness.
+function sofaFrontG(ctx, {x0 = 300, x1 = 980, top = 1446, h = 60} = {}) {
+  const w = x1 - x0, mid = (x0 + x1) / 2;
+  fs(ctx, rr(x0 - 14, top + h - 10, w + 28, 46, 12), '#7a3a1e', 6); // the dark base under the cushion
+  fs(ctx, rr(x0, top, w, h, 22), '#c4643a', 7); fs(ctx, rr(x0 + 10, top + 4, w - 20, 14, 7), '#e08a5a', 0); // cushion + its lit lip
+  ctx.strokeStyle = 'rgba(80,30,10,.55)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(mid, top + 10); ctx.lineTo(mid, top + h - 4); ctx.stroke();
+}
 function floorLampG(ctx, {on = 1} = {}) { // origin = foot
   fs(ctx, el(0, 0, 54, 14), '#3c2c24', 5); fs(ctx, rr(-7, -560, 14, 560, 4), '#3c2c24', 4);
   fs(ctx, poly([[-70, -640], [70, -640], [96, -540], [-96, -540]]), on ? '#ffe08a' : '#cdb58a', 6);
@@ -275,7 +283,7 @@ Object.assign(SETS, {
     };
   },
   // the garden at the end of the day: the dusk sky with the long shadows of the hour on everything (a property of the place, the whole scene)
-  geYardDusk() { return ctx => { SETS.gYard({time: 'dusk'})(ctx); ctx.fillStyle = 'rgba(70,24,44,.34)'; ctx.fillRect(0, 0, 1080, 1920); glow(ctx, 300, 760, 420, 0.35, '255,170,90'); }; },
+  geYardDusk({dim = 0.46} = {}) { return ctx => { SETS.gYard({time: 'dusk'})(ctx); ctx.fillStyle = `rgba(70,24,44,${dim})`; ctx.fillRect(0, 0, 1080, 1920); glow(ctx, 300, 760, 420, 0.35, '255,170,90'); }; },
   // a house at night from outside: only the lit room behind the window (the wall with the hole is the FRONT prop nightWallG)
   geNightOut() {
     return ctx => {
@@ -323,4 +331,4 @@ Object.assign(SETS, {
     };
   },
 });
-Object.assign(PROPS, {bigCtrG, nightWallG, familyPhotoG, earsG, thoughtG, scribbleG, wallClockG, sofaG, peaG, deskFrontG, dishesG, grillG, buntingG, bookcaseG});
+Object.assign(PROPS, {sofaFrontG, bigCtrG, nightWallG, familyPhotoG, earsG, thoughtG, scribbleG, wallClockG, sofaG, peaG, deskFrontG, dishesG, grillG, buntingG, bookcaseG});
