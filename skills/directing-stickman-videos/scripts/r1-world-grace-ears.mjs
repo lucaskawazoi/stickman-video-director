@@ -223,7 +223,7 @@ Object.assign(SETS, {
   // Dark on purpose but READABLE (it is a lit interior): every surface keeps its colour, the lamp glow lifts the middle of the room.
   geLiving({lamp = 1} = {}) {
     return ctx => {
-      room(ctx, '#85587a', '#5f3d52', '#94603f');
+      room(ctx, '#b080a2', '#876079', '#a8714a');
       ctx.fillStyle = 'rgba(255,235,200,.05)'; for (let x = 60; x < 1080; x += 120) ctx.fillRect(x, 0, 40, 1040);
       windowPane(ctx, 90, 330, 260, 430, 'night');
       ctx.save(); ctx.translate(660, 300); bookcaseG(ctx); ctx.restore();
@@ -231,7 +231,7 @@ Object.assign(SETS, {
       fs(ctx, el(540, 1560, 440, 150), '#b5552f', 7); fs(ctx, el(540, 1560, 360, 112), '#fbf1dc', 0); fs(ctx, el(540, 1560, 300, 90), '#c4643a', 0);
       ctx.save(); ctx.translate(955, 1300); floorLampG(ctx, {on: lamp}); ctx.restore();
       if (lamp) { glow(ctx, 955, 700, 900, 0.62, '255,206,120'); glow(ctx, 955, 1320, 500, 0.28, '255,206,120'); glow(ctx, 540, 900, 700, 0.12, '255,220,160'); }
-      ctx.fillStyle = 'rgba(28,12,50,.16)'; ctx.fillRect(0, 0, 1080, 1920);
+      ctx.fillStyle = 'rgba(28,12,50,.05)'; ctx.fillRect(0, 0, 1080, 1920);
       if (lamp) glow(ctx, 955, 700, 760, 0.32, '255,206,120');
     };
   },
