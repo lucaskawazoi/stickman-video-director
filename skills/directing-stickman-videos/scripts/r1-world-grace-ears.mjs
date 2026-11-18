@@ -29,7 +29,7 @@ if (!globalThis.__graceEarPatch) {
 
 // ---------------------------------------------------------------- the ears
 // head radius units: ear height (half) ry for the counter n. 5 ≈ an ordinary ear; 3 = peas; 20 = an elephant's.
-const earRy = n => 0.09 * Math.min(1, n) + 0.05 * n;
+const earRy = n => n <= 0 ? 0 : n < 1 ? 0.3 * n : 0.3 + 0.0447 * (n - 1); // 1 = a small ear (still outside the head outline), 5 ≈ 0.48, 10 ≈ 0.70, 20 ≈ 1.15
 // the number of ears to draw now: the counter, with a small pop on a ±1 change and the continuous value while it rolls
 function earN(A, t) {
   const L = A._led; if (!L) return 0;
@@ -38,11 +38,11 @@ function earN(A, t) {
   if (delta && Math.abs(delta) <= 3 && t - changeT < 0.34) return (v - delta) + delta * easeOutBack(clamp((t - changeT) / 0.34));
   return v;
 }
-function earGeom(n, sg, t, seed, scale = 1) {
+function earGeom(n, sg, t, seed, scale = 1, extra = 0, flare = 0) {
   const ry = earRy(n) * scale, rx = ry * 0.78, big = clamp((n - 8) / 12);
   const flap = Math.sin(t * 3.1 + seed + (sg > 0 ? 0 : 1.6)) * 0.07 * big + Math.sin(t * 7.3 + seed) * 0.012 * big;
-  const th = sg * (0.12 + 0.011 * n + flap);
-  const ax = sg * 0.90, ay = 0.10; // attach point (head radius units)
+  const th = sg * (0.12 + 0.011 * n + flap) + extra + sg * flare;
+  const ax = sg * 0.945, ay = 0.10; // attach point (head radius units)
   const c = Math.cos(th), s = Math.sin(th);
   return {ax, ay, th, rx, ry, tip: [ax + s * 1.42 * ry, ay - c * 1.42 * ry]};
 }
@@ -69,7 +69,7 @@ function drawHat(ctx, hat, tips) {
   fs(ctx, el(0, hy, 1.2, 0.13), dark(col, 0.12), LWU);
 }
 // args: {A: the actor object (the same one the shot lists), t, n?: override (number of ears), ears?: false, hat?: {type, color, band, y}}
-function earsG(ctx, {A, t = 0, n = null, ears = true, hat = null} = {}) {
+function earsG(ctx, {A, t = 0, n = null, ears = true, hat = null, swing = 0, hatHop = 0, flare = 0} = {}) {
   if (!A || !A._xy || !A._head || !A._spec || (A._alpha ?? 1) <= 0.02) return;
   const R = A._headR, s = A._s, fl = A.flip ? -1 : 1, skin = A._spec.skin || '#e3b38e'; LWU = 0.8 / R;
   const num = n != null ? n : earN(A, t), seed = (A.id || 'x').length * 1.7 + (A.id || 'x').charCodeAt(0);
@@ -80,10 +80,10 @@ function earsG(ctx, {A, t = 0, n = null, ears = true, hat = null} = {}) {
   if (ears && num > 0.02) {
     ctx.save();
     const P = new Path2D(); P.rect(-8, -8, 16, 16); P.moveTo(0.93 + 0.03, 0); P.ellipse(0, 0, 0.93 + 0.03, 1.03, 0, 0, Math.PI * 2); ctx.clip(P, 'evenodd');
-    for (const sg of [1, -1]) { const g = earGeom(num, sg, t, seed, sc); tips.push(g.tip); drawEar(ctx, g, skin); }
+    for (const sg of [1, -1]) { const g = earGeom(num, sg, t, seed, sc, swing, flare); tips.push(g.tip); drawEar(ctx, g, skin); }
     ctx.restore();
   } else if (hat?.type === 'perch') for (const sg of [1, -1]) tips.push(earGeom(0.0, sg, t, seed).tip);
-  if (hat) drawHat(ctx, hat, tips);
+  if (hat) { ctx.save(); if (hatHop) { ctx.translate(0, -hatHop); ctx.rotate(-hatHop * 0.25); } drawHat(ctx, hat, tips); ctx.restore(); }
   if (L && L.delta && n == null) { // the pop: a ring and ticks around each ear on every change (ember closing in = shrink, gold opening out = grow)
     const q = (t - L.changeT) / 0.6;
     if (q >= 0 && q < 1) {
@@ -147,13 +147,14 @@ function wallClockG(ctx, {h = 12, m = 0, shake = 0} = {}) {
   ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.sin(am) * 84, -Math.cos(am) * 84); ctx.stroke(); fs(ctx, el(0, 0, 10, 10), INK, 0);
   ctx.restore();
 }
-function sofaG(ctx, {w = 780, color = '#c4643a'} = {}) { // origin = bottom centre (the floor line under the cushions)
-  const d = dark(color, 0.18);
+function sofaG(ctx, {w = 780, color = '#c4643a', k = 1} = {}) { // origin = bottom centre (the floor line under the cushions)
+  ctx.save(); ctx.scale(k, k); const d = dark(color, 0.18);
   fs(ctx, rr(-w / 2 + 20, -400, w - 40, 330, 70), d, 7);
   fs(ctx, rr(-w / 2 + 60, -120, w - 120, 110, 30), color, 7);
   fs(ctx, rr(-w / 2 - 30, -250, 110, 250, 44), mix(color, '#000000', 0.08), 7); fs(ctx, rr(w / 2 - 80, -250, 110, 250, 44), mix(color, '#000000', 0.08), 7);
   for (const x of [-w / 2 + 70, w / 2 - 70]) fs(ctx, rr(x - 18, 0, 36, 28, 6), '#3c2c24', 5);
-  fs(ctx, el(-w * 0.3, -220, 62, 56), '#f4b942', 6); fs(ctx, el(w * 0.34, -226, 60, 54), '#7c8f4a', 6);
+  fs(ctx, rr(-w * 0.3 - 56, -272, 112, 100, 28), '#f4b942', 6); fs(ctx, rr(w * 0.34 - 60, -280, 120, 110, 50), '#e8b878', 6); fs(ctx, el(w * 0.34, -226, 10, 10), '#b5552f', 4);
+  ctx.restore();
 }
 function floorLampG(ctx, {on = 1} = {}) { // origin = foot
   fs(ctx, el(0, 0, 54, 14), '#3c2c24', 5); fs(ctx, rr(-7, -560, 14, 560, 4), '#3c2c24', 4);
@@ -184,21 +185,107 @@ function bookcaseG(ctx) { // origin = top-left corner, 230 × 760
   for (let r = 0; r < 4; r++) { const y = 30 + r * 180; fs(ctx, rr(14, y + 150, 202, 14, 3), '#3c2c24', 4); let x = 22; for (let i = 0; i < 7; i++) { const bw = 18 + hashN(i + r * 7) * 12, bh = 100 + hashN(i * 3 + r) * 40; fs(ctx, rr(x, y + 150 - bh, bw, bh, 3), ['#c4643a', '#f4b942', '#7c8f4a', '#5a7fb0', '#e2574c', '#d9c9a8', '#9a7ab0'][(i + r * 2) % 7], 3); x += bw + 4; } }
 }
 
+
+// a big counter that sits over an actor's head (the opening: 2-3x the engine's plate), pulsing on every change (scale + red flash on a fall, gold on a rise)
+function bigCtrG(ctx, {A, t = 0, label = 'EARS', k = 1} = {}) {
+  if (!A || !A._xy || !A._head || (A._alpha ?? 1) <= 0.02) return;
+  const L = A._led; if (!L) return; const R = A._headR * A._s, hx = A._head[0], hy = A._head[1];
+  const q = L.delta ? (t - L.changeT) / 0.55 : 9, on = q >= 0 && q < 1, fall = L.delta < 0, pul = on ? 1 + 0.38 * Math.sin(Math.min(1, q * 1.6) * Math.PI) : 1;
+  const w = 3.9 * R * k, h = 1.9 * R * k;
+  ctx.save(); ctx.translate(hx, hy - R * 1.45 - h * 0.6); ctx.scale(pul, pul);
+  const p = new Path2D(); p.roundRect(-w / 2, -h / 2, w, h, h * 0.22);
+  ctx.lineJoin = 'round'; ctx.lineWidth = 10; ctx.strokeStyle = INK; ctx.stroke(p); ctx.fillStyle = '#2a1a14'; ctx.fill(p);
+  if (on) { ctx.globalAlpha = (fall ? 0.85 : 0.6) * (1 - q); ctx.fillStyle = fall ? '#ff3b2f' : '#ffd23f'; ctx.fill(p); ctx.globalAlpha = 1; }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#e9d8b8'; ctx.font = `${h * 0.26}px GraceCaption`; ctx.fillText(label, -w * 0.2, -h * 0.02);
+  ctx.font = `${h * 0.82}px GraceCaption`; ctx.lineWidth = 8; ctx.strokeStyle = INK; const txt = String(Math.max(0, Math.round(L.v)));
+  ctx.fillStyle = on && fall && q < 0.5 ? '#ffffff' : (L.v <= 0 ? '#ffd23f' : '#ff6a4d'); ctx.fillText(txt, w * 0.27, h * 0.05);
+  ctx.restore();
+}
+// a house seen from outside at night: the wall (with a hole = the lit window), trim, sill and warm light spilling on the wall. Draw as a FRONT prop at (0,0) with the camera fixed at z=1 (world = screen).
+function nightWallG(ctx, {hx = 120, hy = 540, hw = 840, hh = 760} = {}) {
+  const p = new Path2D(); p.rect(-20, -20, 1120, 1960); p.roundRect(hx, hy, hw, hh, 18);
+  ctx.save(); ctx.clip(p, 'evenodd');
+  const g = ctx.createLinearGradient(0, 0, 0, 1920); g.addColorStop(0, '#6f5078'); g.addColorStop(0.55, '#85607f'); g.addColorStop(1, '#4e4a45');
+  ctx.fillStyle = g; ctx.fillRect(-20, -20, 1120, 1960);
+  ctx.strokeStyle = 'rgba(40,20,50,.22)'; ctx.lineWidth = 4; for (let y = 60; y < 1500; y += 70) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1080, y); ctx.stroke(); for (let x = (y / 70 % 2) * 60; x < 1080; x += 120) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 70); ctx.stroke(); } }
+  fs(ctx, rr(-30, -30, 1140, 250, 0), '#8b3f30', 6); ctx.strokeStyle = 'rgba(40,10,10,.35)'; ctx.lineWidth = 4; for (let x = -20; x < 1100; x += 90) { ctx.beginPath(); ctx.arc(x, 120, 50, 0.1, Math.PI - 0.1); ctx.stroke(); }
+  fs(ctx, rr(-30, 1500, 1140, 440, 0), '#5d6b3f', 6);
+  ctx.restore();
+  glow(ctx, 540, 920, 760, 0.35, '255,206,120');
+  ctx.save(); ctx.lineJoin = 'round';
+  const tr = new Path2D(); tr.roundRect(hx - 30, hy - 30, hw + 60, hh + 60, 30); tr.roundRect(hx, hy, hw, hh, 18);
+  ctx.fillStyle = '#f1dfc0'; ctx.fill(tr, 'evenodd'); ctx.lineWidth = 8; ctx.strokeStyle = INK; ctx.stroke(tr);
+  fs(ctx, rr(hx - 60, hy + hh + 22, hw + 120, 40, 12), '#d9b98a', 7);
+  for (let i = 0; i < 7; i++) fs(ctx, el(hx + 40 + i * 120, hy + hh + 22, 36, 26), i % 2 ? '#e2574c' : '#f4b942', 5);
+  fs(ctx, poly([[hx - 8, hy - 8], [hx + 120, hy - 8], [hx + 40, hy + hh * 0.7], [hx - 8, hy + hh * 0.7]]), '#f4b942', 6);
+  fs(ctx, poly([[hx + hw + 8, hy - 8], [hx + hw - 120, hy - 8], [hx + hw - 40, hy + hh * 0.7], [hx + hw + 8, hy + hh * 0.7]]), '#f4b942', 6);
+  ctx.restore();
+}
+// a framed old family photo in sepia: a young Frank with little Mia on his shoulders (origin = centre, 700 x 900)
+function familyPhotoG(ctx, {k = 1, t = 0} = {}) {
+  ctx.save(); ctx.scale(k, k); ctx.rotate(-0.03);
+  fs(ctx, rr(-370, -470, 740, 940, 22), '#7a4b2a', 12); fs(ctx, rr(-330, -430, 660, 860, 8), '#f0e0c0', 6);
+  const g = ctx.createLinearGradient(0, -400, 0, 400); g.addColorStop(0, '#e3c797'); g.addColorStop(1, '#bb9461'); ctx.fillStyle = g; ctx.fillRect(-300, -400, 600, 800);
+  ctx.fillStyle = 'rgba(120,80,40,.25)'; ctx.fillRect(-300, 160, 600, 240);
+  const sk = '#c79a6c', cl = '#8a5a34', cl2 = '#6a4224';
+  ctx.translate(0, 95);
+  fs(ctx, rr(-95, 40, 70, 250, 16), cl2, 8); fs(ctx, rr(25, 40, 70, 250, 16), cl2, 8); // legs
+  fs(ctx, rr(-120, -120, 240, 200, 40), cl, 9); // torso
+  fs(ctx, rr(-210, -110, 80, 200, 36), cl, 8); fs(ctx, rr(130, -110, 80, 200, 36), cl, 8);
+  fs(ctx, el(0, -190, 82, 88), sk, 9); ctx.fillStyle = '#3a2418'; ctx.fill(el(0, -240, 84, 40));
+  fs(ctx, el(-88, -186, 22, 34), sk, 7); fs(ctx, el(88, -186, 22, 34), sk, 7);
+  for (const sx of [-30, 30]) { fs(ctx, el(sx, -190, 12, 15), '#fff6e2', 4); ctx.fillStyle = INK; ctx.fill(el(sx, -186, 6, 8)); }
+  ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, -168, 30, 0.2, Math.PI - 0.2); ctx.stroke();
+  // little Mia on his shoulders: her legs hang down both sides of his head, her dress and head are above it, her hands in his hair
+  for (const sx of [-1, 1]) { fs(ctx, rr(sx * 112 - 28, -300, 56, 190, 22), '#c79a6c', 7); fs(ctx, el(sx * 112, -108, 36, 20), '#4a2e1c', 6); }
+  fs(ctx, rr(-62, -440, 124, 150, 34), '#a8714a', 8);
+  fs(ctx, rr(-120, -400, 64, 30, 14), sk, 6); fs(ctx, rr(56, -400, 64, 30, 14), sk, 6);
+  fs(ctx, el(0, -490, 52, 56), sk, 8); ctx.fillStyle = '#2a1a12'; ctx.fill(el(0, -522, 54, 30)); ctx.fill(el(-48, -482, 14, 34)); ctx.fill(el(48, -482, 14, 34));
+  for (const sx of [-18, 18]) { fs(ctx, el(sx, -492, 8, 10), '#fff6e2', 3); ctx.fillStyle = INK; ctx.fill(el(sx, -490, 4, 5)); }
+  ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, -478, 18, 0.1, Math.PI - 0.1); ctx.stroke();
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------- places
 Object.assign(SETS, {
   // an office: window with a view of the village, a filing cabinet, a wall clock, a bulletin board, a desk behind. Warm honey, daylight.
-  geOffice({time = 'noon'} = {}) {
+  geOffice({time = 'noon', clock = true} = {}) {
     return ctx => {
       room(ctx, '#efd7ad', '#c98f5a', '#b98a5e');
       windowPane(ctx, 80, 300, 340, 520, time);
       ctx.strokeStyle = 'rgba(120,80,40,.28)'; ctx.lineWidth = 6; for (let y = 320; y < 800; y += 44) { ctx.beginPath(); ctx.moveTo(86, y); ctx.lineTo(414, y); ctx.stroke(); }
       fs(ctx, rr(560, 300, 420, 300, 10), '#c98f5a', 8); fs(ctx, rr(580, 320, 380, 260, 6), '#e9c38f', 4);
       for (const [x, y, c] of [[600, 340, '#fffdf4'], [700, 360, '#f9e6a8'], [810, 340, '#fffdf4'], [620, 460, '#f9e6a8'], [760, 470, '#fffdf4'], [870, 450, '#fbd9c8']]) { ctx.save(); ctx.translate(x + 40, y + 50); ctx.rotate((hashN(x + y) - 0.5) * 0.2); fs(ctx, rr(-40, -50, 80, 100, 4), c, 4); ctx.strokeStyle = '#b9b3a2'; ctx.lineWidth = 3; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-28, -30 + i * 20); ctx.lineTo(28, -30 + i * 20); ctx.stroke(); } ctx.restore(); }
-      ctx.save(); ctx.translate(780, 680); wallClockG(ctx, {h: 2, m: 40}); ctx.restore();
+      if (clock) { ctx.save(); ctx.translate(780, 680); wallClockG(ctx, {h: 2, m: 40}); ctx.restore(); }
       fs(ctx, rr(890, 800, 150, 500, 10), '#7c8f4a', 7); for (const y of [840, 990, 1140]) { fs(ctx, rr(906, y, 118, 120, 6), '#8fa35a', 5); fs(ctx, rr(948, y + 44, 34, 12, 4), '#3c2c24', 3); }
       fs(ctx, rr(430, 1040, 430, 48, 8), WARM.wood, 6); fs(ctx, rr(450, 1088, 28, 212, 4), WARM.woodD, 5); fs(ctx, rr(812, 1088, 28, 212, 4), WARM.woodD, 5);
       fs(ctx, rr(520, 1000, 70, 44, 6), '#fbf1dc', 4); fs(ctx, rr(660, 1010, 120, 30, 4), '#e2574c', 4);
       glow(ctx, 250, 560, 520, 0.18, '255,230,160');
+    };
+  },
+  // the kitchen of gKitchen with the black "hole" turned into an oven: cream door, glass window with the glow of the heat, handle, knobs
+  geKitchen({time = 'day'} = {}) {
+    return ctx => {
+      SETS.gKitchen({time})(ctx);
+      fs(ctx, rr(80, 760, 360, 300, 20), '#b5552f', 6);
+      for (let i = 0; i < 4; i++) fs(ctx, el(130 + i * 80, 786, 17, 17), '#fbf1dc', 4);
+      fs(ctx, rr(112, 820, 296, 224, 22), '#f1dfc0', 6); fs(ctx, rr(144, 856, 232, 128, 16), '#8a4a2a', 5); glow(ctx, 260, 930, 140, 0.55, '255,170,70');
+      fs(ctx, rr(150, 862, 70, 30, 8), 'rgba(255,255,255,.35)', 0); fs(ctx, rr(140, 1004, 240, 16, 8), '#c9c0ae', 5);
+      if (time === 'night') { ctx.fillStyle = 'rgba(40,20,50,.40)'; ctx.fillRect(0, 0, 1080, 1920); }
+    };
+  },
+  // the garden at the end of the day: the dusk sky with the long shadows of the hour on everything (a property of the place, the whole scene)
+  geYardDusk() { return ctx => { SETS.gYard({time: 'dusk'})(ctx); ctx.fillStyle = 'rgba(70,24,44,.34)'; ctx.fillRect(0, 0, 1080, 1920); glow(ctx, 300, 760, 420, 0.35, '255,170,90'); }; },
+  // a house at night from outside: only the lit room behind the window (the wall with the hole is the FRONT prop nightWallG)
+  geNightOut() {
+    return ctx => {
+      room(ctx, '#b080a2', '#876079', '#a8714a', 1240);
+      windowPane(ctx, 130, 330, 220, 360, 'night');
+      ctx.save(); ctx.translate(690, 300); bookcaseG(ctx); ctx.restore();
+      fs(ctx, rr(400, 380, 170, 220, 10), '#c98f5a', 7); fs(ctx, rr(414, 394, 142, 192, 4), '#f1d9b5', 4);
+      ctx.save(); ctx.translate(880, 1240); floorLampG(ctx, {on: 1}); ctx.restore();
+      glow(ctx, 880, 700, 700, 0.5, '255,206,120'); glow(ctx, 540, 1100, 600, 0.2, '255,220,160');
+      fs(ctx, el(540, 1280, 400, 90), '#b5552f', 7); fs(ctx, el(540, 1280, 330, 66), '#fbf1dc', 0); fs(ctx, el(540, 1280, 270, 50), '#c4643a', 0);
     };
   },
   // a meeting room: a whiteboard with a lightbulb scribble, a big window, a long table drawn as the deskFrontG prop in front.
@@ -236,4 +323,4 @@ Object.assign(SETS, {
     };
   },
 });
-Object.assign(PROPS, {earsG, thoughtG, scribbleG, wallClockG, sofaG, peaG, deskFrontG, dishesG, grillG, buntingG, bookcaseG});
+Object.assign(PROPS, {bigCtrG, nightWallG, familyPhotoG, earsG, thoughtG, scribbleG, wallClockG, sofaG, peaG, deskFrontG, dishesG, grillG, buntingG, bookcaseG});
