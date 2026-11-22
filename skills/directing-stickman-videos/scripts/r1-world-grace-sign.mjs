@@ -3,7 +3,7 @@
 // hand), a car, a parking sign, a donut box, sugar on a mustache, the paper rain of a hundred confessions, a reflection of an actor in glass, a
 // spiky scribble shout, a gold halo. Registered into SETS/PROPS on import. NOTHING existing in the engine is edited.
 import {Path2D} from '@napi-rs/canvas';
-import {INK, mix, dark, light, drawCharacter} from './r1-rig.mjs';
+import {INK, mix, dark, light, drawCharacter, bodyMetrics, PLANS} from './r1-rig.mjs';
 import {SETS, PROPS} from './r1-world.mjs';
 import {fs, rr, el, poly, hashN, glow, olive, sky, windowPane, room, cobbles, easeOutBack, SHADE, WARM} from './r1-world-grace.mjs';
 import './r1-world-grace-ears.mjs';   // living room at night, sofa, kitchen, bigCtrG, scribbleG...
@@ -43,13 +43,29 @@ function holderPose(A, hand, R, sideK = 0.55) {
   const H = 2.15 * R, W = 2.7 * R, sx = A._head[0] + (hp[0] - A._head[0]) * sideK, bottom = A._top[1] - 0.5 * R;
   return {hp, sx, bottom, W, H, cx: sx, cy: bottom - H / 2};
 }
+// the sign over a head with the hand and the stick HIDDEN (the arm is up behind the head): geometry computed from the actor's keyed numbers, no state
+function hiddenGeom({x, y, s, sit = 0, spec, dx = 0, dy = 0}) {
+  const M = bodyMetrics(spec), Pl = PLANS[spec.plan || 'adult'], hx = x + dx, hy = y + dy + (M.headY + sit * Pl.leg * 0.45) * s, R = M.head * s;
+  const W = 2.5 * R, H = 1.9 * R, bottom = hy - R * 1.13 - 0.1 * R;
+  return {hx, hy, R, W, H, cx: hx, cy: bottom - H / 2, bottom, hp: [hx, hy - 0.2 * R]};
+}
+function cardHiddenG(ctx, {x, y, s, sit = 0, spec, t = 0, fade0 = null, n = '1', dx = 0, dy = 0} = {}) {
+  const g = hiddenGeom({x, y, s, sit, spec, dx, dy}); let al = 1; if (fade0 != null) { al = ease((t - fade0) / 0.5); if (al <= 0) return; }
+  ctx.save(); ctx.globalAlpha = al; ctx.lineCap = 'round';
+  const sw = Math.max(6, g.R * 0.11);
+  ctx.strokeStyle = INK; ctx.lineWidth = sw + 5; ctx.beginPath(); ctx.moveTo(g.hp[0], g.hp[1]); ctx.lineTo(g.cx, g.bottom - g.H * 0.2); ctx.stroke();
+  ctx.strokeStyle = '#8a5a36'; ctx.lineWidth = sw; ctx.beginPath(); ctx.moveTo(g.hp[0], g.hp[1]); ctx.lineTo(g.cx, g.bottom - g.H * 0.2); ctx.stroke();
+  ctx.translate(g.cx, g.cy - (fade0 != null ? (1 - al) * g.R * 0.25 : 0)); ctx.rotate(Math.sin(t * 1.9 + 1) * 0.02);
+  cardboard(ctx, g.W, g.H, {n, t});
+  ctx.restore();
+}
 // args: {A: the one who holds it, G: the one who takes it, t, tPull, hand, gHand, R, pop: start time of a pop-in}
-function cardSignG(ctx, {A, G = null, t = 0, tPull = 1e9, hand = 'R', gHand = 'R', R = null, pop = null, n = '1', gLen = 2.7, gDx = 0} = {}) {
+function cardSignG(ctx, {A, G = null, t = 0, tPull = 1e9, hand = 'R', gHand = 'R', R = null, pop = null, n = '1', gLen = 2.7, gDx = 0, H0 = null} = {}) {
   const R0 = R ?? (A && A._headR ? A._headR * A._s : (G && G._headR ? G._headR * G._s : 70));
-  const a = holderPose(A, hand, R0); let q = 0, g = null;
+  const a = A ? holderPose(A, hand, R0) : (H0 ? (() => { const h = hiddenGeom(H0); return {hp: h.hp, cx: h.cx, cy: h.cy, bottom: h.bottom, W: h.W, H: h.H}; })() : null); let q = 0, g = null;
   if (G && t >= tPull) {
     const hg = handOf(G, gHand);
-    if (hg) { g = {hp: hg, cx: hg[0] + gDx * R0, bottom: hg[1] - gLen * R0, W: 2.7 * R0, H: 2.15 * R0}; g.cy = g.bottom - g.H / 2; q = ease((t - tPull) / 0.28); }
+    if (hg) { g = {hp: hg, cx: hg[0] + gDx * R0, bottom: hg[1] - gLen * R0, W: a ? a.W : 2.7 * R0, H: a ? a.H : 2.15 * R0}; g.cy = g.bottom - g.H / 2; q = ease((t - tPull) / 0.28); }
   }
   let P = a, hpt = a && a.hp;
   if (g && (q >= 1 || !a)) { P = g; hpt = g.hp; }
@@ -75,6 +91,7 @@ function haloG(ctx, {A, t = 0, t0 = 0, r = 1, up = 1.9} = {}) {
   ctx.save(); ctx.translate(x, y); ctx.globalAlpha = k;
   const g = ctx.createRadialGradient(0, 0, 10, 0, 0, 520 * r); g.addColorStop(0, 'rgba(255,226,130,.75)'); g.addColorStop(0.5, 'rgba(255,214,110,.28)'); g.addColorStop(1, 'rgba(255,214,110,0)');
   ctx.fillStyle = g; ctx.fillRect(-540, -540, 1080, 1080);
+  { const q = (t - t0) / 0.7; if (q >= 0 && q < 1) { ctx.strokeStyle = `rgba(255,214,90,${0.9 * (1 - q)})`; ctx.lineWidth = 16 * (1 - q) + 3; ctx.beginPath(); ctx.ellipse(0, 0, 140 + 330 * q, 70 + 165 * q, 0, 0, 7); ctx.stroke(); } }
   ctx.rotate(t * 0.25); ctx.fillStyle = 'rgba(255,240,180,.22)';
   for (let i = 0; i < 12; i++) { ctx.rotate(Math.PI / 6); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-34 * r, -520 * r); ctx.lineTo(34 * r, -520 * r); ctx.closePath(); ctx.fill(); }
   ctx.restore();
@@ -133,18 +150,18 @@ function papersG(ctx, {t = 0, t0 = 0, t1 = 2, n = 40, spread = 360, top = -900, 
   }
 }
 // an actor's reflection in glass: a mirrored, translucent copy of the actor (pose and face from the last drawn frame) + the sign over it.
-function reflectG(ctx, {A, t = 0, cx = 540, cy = 1500, s = 3, alpha = 0.5, clip = null, sign = true, signN = '1', fl = -1} = {}) {
+function reflectG(ctx, {A, t = 0, cx = 540, cy = 1500, s = 3, alpha = 0.5, clip = null, sign = true, signN = '1', fl = -1, pose = null, stick = false} = {}) {
   if (!A || !A._spec || !A._st || (A._alpha ?? 1) <= 0.02) return;
   ctx.save();
   if (clip) ctx.clip(rr(...clip));
   ctx.globalAlpha = alpha * (A._alpha ?? 1); ctx.translate(cx, cy); ctx.scale(fl * s, s);
-  const r = drawCharacter(ctx, A._spec, {...A._st, bob: 0, armsFront: false});
+  const r = drawCharacter(ctx, A._spec, {...A._st, bob: 0, armsFront: false, ...(pose ? {pose} : {})});
   ctx.restore();
   if (!sign) return;
   const hp = r.arms[1] && r.arms[1].W, hd = r.headTop;
   ctx.save(); if (clip) ctx.clip(rr(...clip)); ctx.globalAlpha = alpha * 1.1 * (A._alpha ?? 1);
-  const R0 = 15 * s, W = 2.7 * R0, H = 2.15 * R0, hx = cx + fl * (hp ? hp[0] : 20) * s, hy = cy + (hp ? hp[1] : -80) * s, sx = cx + (hx - cx) * 0.55, by = cy + hd * s - 0.5 * R0;
-  ctx.lineCap = 'round'; ctx.strokeStyle = INK; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(sx, by - H * 0.4); ctx.stroke(); ctx.strokeStyle = '#8a5a36'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(sx, by - H * 0.4); ctx.stroke();
+  const R0 = 15 * s, W = 2.7 * R0, H = 2.15 * R0, hx = cx + fl * (hp ? hp[0] : 20) * s, hy = cy + (hp ? hp[1] : -80) * s, sx = stick ? cx + (hx - cx) * 0.55 : cx, by = cy + hd * s - (stick ? 0.5 : 0.12) * R0;
+  ctx.lineCap = 'round'; if (stick) ctx.strokeStyle = INK; ctx.lineWidth = 8; if (stick) { ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(sx, by - H * 0.4); ctx.stroke(); ctx.strokeStyle = '#8a5a36'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(sx, by - H * 0.4); ctx.stroke(); }
   ctx.translate(sx, by - H / 2); cardboard(ctx, W, H, {n: signN}); ctx.restore();
 }
 // a shout: a spiky white burst full of scribbles and a lightning bolt (the words he cannot repeat). origin = centre. k 0..1 pop
@@ -168,7 +185,17 @@ function armchairG(ctx, {w = 470, color = '#8a5a8c'} = {}) { // back + arms, ori
   for (const x of [-w / 2 + 50, w / 2 - 50]) fs(ctx, rr(x - 14, 0, 28, 26, 6), '#3c2c24', 5);
   fs(ctx, rr(-60, -330, 120, 100, 30), '#f4b942', 6);
 }
-Object.assign(PROPS, {cardSignG, haloG, carG, parkSignG, donutG, donutBoxG, sugarG, papersG, reflectG, shoutG, pewFrontG, armchairG});
+// the verse card with its words revealed one by one at the voice's times. args {lines: [[{w, s}...]], y, t}
+function verseG(ctx, {lines = [], y = 570, t = 0, size = 66, lh = 1.32} = {}) {
+  ctx.save(); ctx.font = `${size}px GraceVerse`; ctx.textBaseline = 'middle';
+  const sp = ctx.measureText(' ').width, wid = lines.map(l => l.reduce((a, w) => a + ctx.measureText(w.w).width, 0) + sp * (l.length - 1));
+  const tw = Math.max(...wid) + 110, th = lines.length * size * lh + 90, c = new Path2D(); c.roundRect(540 - tw / 2, y - th / 2, tw, th, 28);
+  ctx.fillStyle = 'rgba(60,30,10,.25)'; ctx.save(); ctx.translate(0, 10); ctx.fill(c); ctx.restore(); ctx.fillStyle = 'rgba(255,246,226,.96)'; ctx.fill(c); ctx.lineWidth = 6; ctx.strokeStyle = '#2a211e'; ctx.stroke(c);
+  lines.forEach((l, i) => { let x = 540 - wid[i] / 2; const yy = y + (i - (lines.length - 1) / 2) * size * lh;
+    for (const w of l) { const k = clamp((t - w.s + 0.04) / 0.18); ctx.globalAlpha = k; ctx.fillStyle = '#3a2412'; ctx.fillText(w.w, x, yy + (1 - k) * 8); x += ctx.measureText(w.w).width + sp; } });
+  ctx.restore();
+}
+Object.assign(PROPS, {verseG, cardHiddenG, cardSignG, haloG, carG, parkSignG, donutG, donutBoxG, sugarG, papersG, reflectG, shoutG, pewFrontG, armchairG});
 
 // ------------------------------------------------------------------ places
 const ROADC = '#c3ad8e';
