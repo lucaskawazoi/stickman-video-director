@@ -195,7 +195,13 @@ function verseG(ctx, {lines = [], y = 570, t = 0, size = 66, lh = 1.32} = {}) {
     for (const w of l) { const k = clamp((t - w.s + 0.04) / 0.18); ctx.globalAlpha = k; ctx.fillStyle = '#3a2412'; ctx.fillText(w.w, x, yy + (1 - k) * 8); x += ctx.measureText(w.w).width + sp; } });
   ctx.restore();
 }
-Object.assign(PROPS, {verseG, cardHiddenG, cardSignG, haloG, carG, parkSignG, donutG, donutBoxG, sugarG, papersG, reflectG, shoutG, pewFrontG, armchairG});
+// a shop-window reflection that mirrors the real hidden-sign Owen exactly (same size, same place mirrored, no stick shown beyond what the body shows). args: {A, x, y, s, spec, t, axis, alpha, clip}
+function reflectHidG(ctx, {A, x, y, s, spec, t = 0, axis, alpha = 0.55, clip = null} = {}) {
+  if (!A || !A._spec || !A._st) return;
+  reflectG(ctx, {A, t, cx: 2 * axis - x, cy: y, s, alpha, clip, sign: false});
+  ctx.save(); if (clip) ctx.clip(rr(...clip)); ctx.globalAlpha = alpha; ctx.translate(2 * axis, 0); ctx.scale(-1, 1); cardHiddenG(ctx, {x, y, s, spec, t}); ctx.restore();
+}
+Object.assign(PROPS, {reflectHidG, verseG, cardHiddenG, cardSignG, haloG, carG, parkSignG, donutG, donutBoxG, sugarG, papersG, reflectG, shoutG, pewFrontG, armchairG});
 
 // ------------------------------------------------------------------ places
 const ROADC = '#c3ad8e';
