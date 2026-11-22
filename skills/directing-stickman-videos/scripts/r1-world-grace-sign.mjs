@@ -200,6 +200,17 @@ Object.assign(PROPS, {verseG, cardHiddenG, cardSignG, haloG, carG, parkSignG, do
 // ------------------------------------------------------------------ places
 const ROADC = '#c3ad8e';
 Object.assign(SETS, {
+  // same living room, but the lamp wall in warm gold (no window): used on the close shots so close x wide reads as a different picture. Lighter than geLiving, never darker.
+  gsLivingGold() {
+    return ctx => {
+      room(ctx, '#e3bd72', '#c99c52', '#a8714a');
+      ctx.fillStyle = 'rgba(255,240,200,.10)'; for (let x = 60; x < 1080; x += 120) ctx.fillRect(x, 0, 40, 1040);
+      ctx.save(); ctx.translate(120, 300); PROPS.bookcaseG(ctx); ctx.restore();
+      fs(ctx, rr(560, 380, 170, 220, 10), '#c98f5a', 7); fs(ctx, rr(574, 394, 142, 192, 4), '#f1d9b5', 4); fs(ctx, el(645, 470, 26, 28), '#e3b38e', 4); fs(ctx, rr(618, 498, 54, 60, 10), '#c4643a', 4);
+      fs(ctx, el(540, 1560, 440, 150), '#b5552f', 7); fs(ctx, el(540, 1560, 360, 112), '#fbf1dc', 0); fs(ctx, el(540, 1560, 300, 90), '#c4643a', 0);
+      glow(ctx, 955, 700, 760, 0.3, '255,206,120');
+    };
+  },
   // the inside of a confessional: two wooden cabins, a lattice window in the partition, a candle on each side, a cross. A lit interior with dark
   // wood, READABLE: every surface keeps its colour. The priest is a silhouette behind the lattice.
   gsConfess({light: lt = 1, dim = 0.42} = {}) {
