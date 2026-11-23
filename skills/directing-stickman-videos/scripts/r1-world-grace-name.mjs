@@ -130,7 +130,7 @@ function juiceSplashG(ctx, {t = 0, t0 = 0, from = [-260, -420], puddle = true, p
   const q = t - t0; if (q < 0) return; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const fall = clamp(q / 0.38);
   const arc = () => { ctx.beginPath(); for (let i = 0; i <= 14; i++) { const k = i / 14 * fall, x = lerp(from[0], 0, k), y = lerp(from[1], 0, k * k); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); };
-  if (fall < 1) { ctx.strokeStyle = INK; ctx.lineWidth = 17; arc(); ctx.strokeStyle = '#f59a2f'; ctx.lineWidth = 9; arc(); }
+  if (fall < 1) for (let i = 0; i < 9; i++) { const k = clamp(fall - i * 0.07); if (k <= 0) continue; const x = lerp(from[0], 0, k) + (hashN(i * 5.1) - 0.5) * 26, y = lerp(from[1], 0, k * k) + (hashN(i * 7.7) - 0.5) * 20, r = 12 - i * 0.7; fs(ctx, el(x, y, r, r * 1.25), '#f59a2f', 3); }
   if (puddle) { const g = ease((q - 0.3) / 0.5); if (g > 0) { fs(ctx, el(0, 8, 190 * g * pr, 46 * g * pr), '#f59a2f', 5); ctx.fillStyle = 'rgba(255,230,160,.55)'; ctx.fill(el(-50 * g * pr, 0, 60 * g * pr, 12 * g * pr)); } }
   const sp = clamp((q - 0.32) / 0.5); if (sp > 0 && sp < 1) for (let i = 0; i < 12; i++) { const a = -0.3 - hashN(i * 2.1) * 2.5, v = 160 + hashN(i * 3.3) * 200, x = Math.cos(a) * v * sp, y = Math.sin(a) * v * sp + 380 * sp * sp; ctx.globalAlpha = 1 - sp; fs(ctx, el(x, y, 15 * (1 - sp * 0.5), 15 * (1 - sp * 0.5)), '#f59a2f', 3); ctx.globalAlpha = 1; }
 }
