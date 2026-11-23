@@ -53,12 +53,12 @@ function badgeG(ctx, {A, t = 0, name = '', drops = [], blank = false, sc = 1, du
   // the last letter fades: it lifts off the tag, swells, breaks into dust
   if (!blank && active !== undefined) {
     const q = clamp((t - active) / dur), i = present - 1, [lx, ly] = letterAt(i), ch = name[i];
-    ctx.save(); ctx.translate(lx + Math.sin(q * 14) * bh * 0.03, ly - ease(q) * bh * 0.55); ctx.scale(1 + 1.1 * q, 1 + 1.1 * q); ctx.rotate(Math.sin(q * 9) * 0.18 * q);
-    ctx.globalAlpha *= q < 0.45 ? 1 : Math.max(0, 1 - (q - 0.45) / 0.5); ctx.font = `${fz}px GraceCaption`; ctx.fillStyle = MARK; ctx.fillText(ch, 0, 0); ctx.restore();
-    for (let p = 0; p < 22; p++) {                     // dust: ink grains, a few ember ones, flying out and up
-      const a = hashN(p * 2.3 + i) * 6.283, v = (0.35 + hashN(p * 5.7 + 1) * 0.9) * bh, d = Math.max(0, q - 0.12 * hashN(p)) * 1.15;
-      if (d <= 0) continue; const x = lx + Math.cos(a) * v * d * 1.1, y = ly - bh * 0.1 + Math.sin(a) * v * d * 0.8 - d * bh * 0.45 + d * d * bh * 0.3, r = bh * (0.045 + 0.045 * hashN(p + 9)) * (1 - 0.6 * q);
-      ctx.save(); ctx.globalAlpha = (A._alpha ?? 1) * (1 - q) * 0.95; ctx.fillStyle = p % 5 === 0 ? '#d9473a' : p % 3 === 0 ? '#6e5a4a' : MARK; ctx.translate(x, y); ctx.rotate(a + q * 4); ctx.fillRect(-r, -r, 2 * r, 2 * r); ctx.restore();
+    ctx.save(); ctx.translate(lx + Math.sin(q * 14) * bh * 0.03, ly - ease(q) * bh * 0.55); ctx.scale(1 + 2.2 * q, 1 + 2.2 * q); ctx.rotate(Math.sin(q * 9) * 0.18 * q);
+    ctx.globalAlpha *= q < 0.45 ? 1 : Math.max(0, 1 - (q - 0.45) / 0.5); ctx.font = `${fz}px GraceCaption`; ctx.fillStyle = q < 0.3 ? '#e0372a' : MARK; ctx.fillText(ch, 0, 0); ctx.restore();
+    for (let p = 0; p < 46; p++) {                     // dust: ink grains, a few ember ones, flying out and up
+      const a = hashN(p * 2.3 + i) * 6.283, v = (0.5 + hashN(p * 5.7 + 1) * 1.6) * bh, d = Math.max(0, q - 0.12 * hashN(p)) * 1.15;
+      if (d <= 0) continue; const x = lx + Math.cos(a) * v * d * 1.1, y = ly - bh * 0.1 + Math.sin(a) * v * d * 0.8 - d * bh * 0.45 + d * d * bh * 0.3, r = bh * (0.05 + 0.08 * hashN(p + 9)) * (1 - 0.5 * q);
+      ctx.save(); ctx.globalAlpha = (A._alpha ?? 1) * (1 - q) * 0.95; ctx.fillStyle = p % 3 === 0 ? '#e0372a' : p % 3 === 0 ? '#6e5a4a' : MARK; ctx.translate(x, y); ctx.rotate(a + q * 4); ctx.fillRect(-r, -r, 2 * r, 2 * r); ctx.restore();
     }
     if (q < 0.35) { ctx.strokeStyle = `rgba(255,238,200,${0.9 * (1 - q / 0.35)})`; ctx.lineWidth = bh * 0.06 * (1 - q / 0.35) + 1; ctx.beginPath(); ctx.arc(lx, ly - bh * 0.1, bh * (0.3 + 1.2 * q), 0, 7); ctx.stroke(); }
   }
@@ -130,7 +130,7 @@ function juiceSplashG(ctx, {t = 0, t0 = 0, from = [-260, -420], puddle = true, p
   const q = t - t0; if (q < 0) return; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const fall = clamp(q / 0.38);
   const arc = () => { ctx.beginPath(); for (let i = 0; i <= 14; i++) { const k = i / 14 * fall, x = lerp(from[0], 0, k), y = lerp(from[1], 0, k * k); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); };
-  if (fall < 1) { ctx.strokeStyle = INK; ctx.lineWidth = 36; arc(); ctx.strokeStyle = '#f59a2f'; ctx.lineWidth = 26; arc(); }
+  if (fall < 1) { ctx.strokeStyle = INK; ctx.lineWidth = 17; arc(); ctx.strokeStyle = '#f59a2f'; ctx.lineWidth = 9; arc(); }
   if (puddle) { const g = ease((q - 0.3) / 0.5); if (g > 0) { fs(ctx, el(0, 8, 190 * g * pr, 46 * g * pr), '#f59a2f', 5); ctx.fillStyle = 'rgba(255,230,160,.55)'; ctx.fill(el(-50 * g * pr, 0, 60 * g * pr, 12 * g * pr)); } }
   const sp = clamp((q - 0.32) / 0.5); if (sp > 0 && sp < 1) for (let i = 0; i < 12; i++) { const a = -0.3 - hashN(i * 2.1) * 2.5, v = 160 + hashN(i * 3.3) * 200, x = Math.cos(a) * v * sp, y = Math.sin(a) * v * sp + 380 * sp * sp; ctx.globalAlpha = 1 - sp; fs(ctx, el(x, y, 15 * (1 - sp * 0.5), 15 * (1 - sp * 0.5)), '#f59a2f', 3); ctx.globalAlpha = 1; }
 }
@@ -186,7 +186,17 @@ function deskTypeG(ctx, {w = 1180, press = 0} = {}) {
   fs(ctx, poly([[w * 0.4 + 10, -312], [w * 0.4 + 90, -282], [w * 0.4 + 60, -250], [w * 0.4 - 10, -290]]), '#ffe08a', 5); glow(ctx, w * 0.4 + 40, -260, 420, 0.5);
 }
 
-Object.assign(PROPS, {newsHeldG, badgeG, carFrontG, newsG, envelopeG, juiceGlassG, juiceSplashG, nameSheetG, pencilG, cakeTopG, deskTypeG});
+// a big «-1» that pops beside someone (the rule's price), origin = where it sits; args {t, t0}
+function minusG(ctx, {t = 0, t0 = 0, text = '-1', size = 230} = {}) {
+  const q = (t - t0) / 1.1; if (q < 0 || q > 1) return; const k = easeOutBack(clamp(q * 4)), a = q < 0.7 ? 1 : 1 - (q - 0.7) / 0.3;
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(0, -q * 90); ctx.scale(k, k); ctx.font = `${size}px GraceCaption`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.lineWidth = size * 0.1; ctx.strokeStyle = INK; ctx.strokeText(text, 0, 0); ctx.fillStyle = '#ff6a4d'; ctx.fillText(text, 0, 0); ctx.restore();
+}
+// a faint letter that drifts through (nothing is given back): origin = centre; args {ch, a}
+function ghostLetterG(ctx, {ch = 'W', a = 1, size = 340} = {}) {
+  ctx.save(); ctx.globalAlpha = 0.75 * a; const g = ctx.createRadialGradient(0, 0, 10, 0, 0, size * 0.8); g.addColorStop(0, 'rgba(255,226,130,.55)'); g.addColorStop(1, 'rgba(255,226,130,0)'); ctx.fillStyle = g; ctx.fillRect(-size, -size, 2 * size, 2 * size);
+  ctx.font = `${size}px GraceCaption`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = size * 0.05; ctx.strokeStyle = 'rgba(180,130,30,.8)'; ctx.strokeText(ch, 0, 0); ctx.fillStyle = 'rgba(255,236,170,.9)'; ctx.fillText(ch, 0, 0); ctx.restore();
+}
+Object.assign(PROPS, {minusG, ghostLetterG, newsHeldG, badgeG, carFrontG, newsG, envelopeG, juiceGlassG, juiceSplashG, nameSheetG, pencilG, cakeTopG, deskTypeG});
 
 // ------------------------------------------------------------------ places
 const ASPH = '#a8957c';
