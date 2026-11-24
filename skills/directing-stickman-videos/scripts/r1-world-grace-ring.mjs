@@ -77,7 +77,7 @@ const ITEMS = {
     if (label) { ctx.fillStyle = '#2a211e'; ctx.font = '62px GraceCaption'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, 0, -77); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; }
     ctx.restore();
   },
-  dish(ctx, {label = ''} = {}) {
+  dish(ctx, {label = '', stamp = ''} = {}) {
     ctx.save();
     for (const sg of [-1, 1]) fs(ctx, rr(sg * 118 - 22, -78, 44, 20, 10), '#efe2c6', 5); // handles
     fs(ctx, poly([[-112, -86], [112, -86], [96, -4], [-96, -4]]), '#f6ecd4', 6);
@@ -85,6 +85,7 @@ const ITEMS = {
     const lid = new Path2D(); lid.moveTo(-100, -86); lid.quadraticCurveTo(-90, -150, 0, -152); lid.quadraticCurveTo(90, -150, 100, -86); lid.closePath(); fs(ctx, lid, '#ffffff', 5);
     ctx.fillStyle = 'rgba(190,225,215,.35)'; ctx.fill(lid); fs(ctx, el(0, -156, 12, 9), '#efe2c6', 4);
     if (label) tape(ctx, label, {x: 0, y: -42, w: 130, h: 46, rot: 0.04});
+    if (stamp) { ctx.save(); ctx.translate(0, -112); ctx.rotate(-0.08); ctx.strokeStyle = '#b3402a'; ctx.fillStyle = '#b3402a'; ctx.lineWidth = 4; ctx.strokeRect(-52, -22, 104, 44); ctx.font = '700 36px Impact, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(stamp, 0, 2); ctx.restore(); }
     ctx.restore();
   },
   bike(ctx, {label = '', color = '#c4643a'} = {}) {
@@ -188,10 +189,10 @@ function ringMoveG(ctx, {A, G, hand = 'R', gHand = 'R', t = 0, t0 = 0, t1 = 0.4,
   ringHandG(ctx, {A, hand, t, R: r, glint});
 }
 // off the hand and into the water at (tx, ty): the ring is NEVER seen again after the plop
-function ringDropG(ctx, {A, hand = 'R', t = 0, t0 = 0, t1 = 0.4, tx = 880, ty = 1560, R = null} = {}) {
+function ringDropG(ctx, {A, hand = 'R', t = 0, t0 = 0, t1 = 0.4, tx = null, ty = 1560, R = null} = {}) {
   const hp = hpos(A, hand); const q = (t - t0) / (t1 - t0); if (q < 0 || q >= 1) return;
-  const hx = hp ? hp[0] : tx, hy = hp ? hp[1] : ty - 200, r = R ?? (A ? A._s * 4.6 : 20);
-  ctx.save(); ctx.translate(lerp(hx, tx, eio(q)), lerp(hy, ty, q * q)); ringShape(ctx, r * (1 - 0.3 * q), {rot: q * 9}); ctx.restore();
+  const hx = hp ? hp[0] : (tx ?? 880), hy = hp ? hp[1] : ty - 200, r = R ?? (A ? A._s * 4.6 : 20);
+  ctx.save(); ctx.translate(lerp(hx, tx ?? hx, eio(q)), lerp(hy, ty, q * q)); ringShape(ctx, r * (1 - 0.3 * q), {rot: q * 9}); ctx.restore();
 }
 // the ring lying in the sand on the lake bottom: a quiet gold glow, a slow twinkle; it does not move
 function ringSandG(ctx, {t = 0, k = 1} = {}) {
@@ -272,8 +273,14 @@ function bubbleFieldG(ctx, {t = 0, t0 = 0, n = 34, speed = 150} = {}) {
   for (let i = 0; i < n; i++) { const sp = speed * (0.6 + hashN(i * 1.7) * 0.9), cyc = 2200 / sp, q = (((t - t0) / cyc + hashN(i * 3.9)) % 1), y = 1980 - q * 2200, x = hashN(i * 7.3) * 1080 + Math.sin(q * 9 + i) * 26, r = 6 + hashN(i * 2.1) * 16;
     ctx.fillStyle = 'rgba(255,252,240,.55)'; ctx.strokeStyle = 'rgba(40,70,60,.5)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke(); }
 }
-Object.assign(PROPS, {bubbleFieldG, tapeG: (ctx, a = {}) => tape(ctx, a.text || '', a), popG, rippleG, ringHandG, ringMoveG, ringDropG, ringSandG, junkRiseG, cerealBowlG, dropsFaceG, ringBoxG, babyPhotoG, cameraTripodG, lampStandG,
-  ringG: (ctx, {r = 40, rot = 0} = {}) => ringShape(ctx, r, {rot}), itemG: (ctx, {kind = 'umbrella', label = '', color} = {}) => ITEMS[kind](ctx, {label, ...(color ? {color} : {})}), starG4: (ctx, {r = 30, a = 1} = {}) => star4(ctx, 0, 0, r, a)});
+// a far-off fish crossing the frame slowly (calm life behind the verse); x runs from -dir*200 across 1280 px in `dur` s
+function fishG(ctx, {t = 0, t0 = 0, dur = 6, dir = 1, k = 1, a = 0.5} = {}) {
+  const q = (t - t0) / dur; if (q < 0 || q > 1) return; const x = (dir > 0 ? -100 + q * 1280 : 1180 - q * 1280), y = Math.sin(q * 6) * 14;
+  ctx.save(); ctx.globalAlpha = a * Math.min(1, q * 6, (1 - q) * 6); ctx.translate(x, y); ctx.scale(dir * k, k);
+  fs(ctx, poly([[-46, 0], [-74, -20], [-70, 20]]), '#e08a4a', 3); fs(ctx, el(0, 0, 50, 24), '#f0a35e', 3.5); ctx.fillStyle = '#2a211e'; ctx.beginPath(); ctx.arc(26, -5, 3.6, 0, 7); ctx.fill(); ctx.restore();
+}
+Object.assign(PROPS, {fishG, bubbleFieldG, tapeG: (ctx, a = {}) => tape(ctx, a.text || '', a), popG, rippleG, ringHandG, ringMoveG, ringDropG, ringSandG, junkRiseG, cerealBowlG, dropsFaceG, ringBoxG, babyPhotoG, cameraTripodG, lampStandG,
+  ringG: (ctx, {r = 40, rot = 0} = {}) => ringShape(ctx, r, {rot}), itemG: (ctx, {kind = 'umbrella', label = '', color, stamp} = {}) => ITEMS[kind](ctx, {label, ...(color ? {color} : {}), ...(stamp ? {stamp} : {})}), starG4: (ctx, {r = 30, a = 1} = {}) => star4(ctx, 0, 0, r, a)});
 
 // ------------------------------------------------------------------ places
 const WATER = {day: ['#8dbfa6', '#4c8479'], rain: ['#86ae9f', '#4a7269'], dusk: ['#5d4a78', '#2d2347']};
