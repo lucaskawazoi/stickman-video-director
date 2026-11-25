@@ -95,21 +95,29 @@ function bookClosedG(ctx, {w = 460, h = 560, edge = 1} = {}) {
 }
 // the book seen from the fore-edge: the whole block of pages, and a line pressed through ALL of them (GOLD: the only gold of the episode)
 function pageStackG(ctx, {w = 960, h = 430, t = 0, t0 = 0, dur = 0.9, glw = 1} = {}) {
-  ctx.save(); ctx.lineJoin = 'round'; ctx.fillStyle = 'rgba(30,10,30,.22)'; ctx.fill(el(0, h / 2 + 34, w * 0.55, 30));
-  fs(ctx, rr(-w / 2, -h / 2 - 54, w + 26, 70, 18), '#6a2f36', 8);
-  fs(ctx, rr(-w / 2, h / 2 - 16, w + 26, 70, 18), '#6a2f36', 8);
-  fs(ctx, rr(-w / 2 - 48, -h / 2 - 54, 90, h + 124, 30), '#7a2f3a', 8);
-  const bx = -w / 2 + 30, bw = w - 20;
-  fs(ctx, rr(bx, -h / 2 + 14, bw, h - 28, 4), '#f5e8c8', 6);
-  ctx.strokeStyle = 'rgba(110,80,40,.5)'; ctx.lineWidth = 2; const N = 56; for (let i = 1; i < N; i++) { const y = -h / 2 + 14 + (h - 28) * i / N; ctx.beginPath(); ctx.moveTo(bx + 4, y); ctx.lineTo(bx + bw - 4, y); ctx.stroke(); }
-  const x = bx + bw * 0.46, q = clamp((t - t0) / dur), yTop = -h / 2 + 14, yBot = h / 2 - 14, yy = lerp(yTop, yBot, easeOut(q));
+  ctx.save(); ctx.lineJoin = 'round'; ctx.fillStyle = 'rgba(30,10,30,.25)'; ctx.fill(el(20, h / 2 + 70, w * 0.55, 30));
+  const cov = 64, ov = 26, bx = -w / 2 + 70, bw = w - 70, by = -h / 2, bh = h;
+  // page block (the fore-edge): cream, many fine leaves, rounded outer edge, shaded toward the spine
+  fs(ctx, rr(bx, by, bw, bh, 18), '#f5e8c8', 7);
+  ctx.save(); ctx.clip(rr(bx, by, bw, bh, 18)); ctx.strokeStyle = 'rgba(110,80,40,.5)'; ctx.lineWidth = 2; const N = 64; for (let i = 1; i < N; i++) { const y = by + bh * i / N; ctx.beginPath(); ctx.moveTo(bx, y); ctx.lineTo(bx + bw, y + (i % 3) * 1.5); ctx.stroke(); }
+  const sh = ctx.createLinearGradient(bx, 0, bx + bw, 0); sh.addColorStop(0, 'rgba(70,40,10,.32)'); sh.addColorStop(0.18, 'rgba(70,40,10,0)'); sh.addColorStop(0.9, 'rgba(255,250,235,.0)'); sh.addColorStop(1, 'rgba(70,40,10,.16)'); ctx.fillStyle = sh; ctx.fillRect(bx, by, bw, bh); ctx.restore();
+  // covers (top and bottom boards, overhanging the block) and the spine on the left, with raised bands
+  fs(ctx, rr(bx - 40, by - cov, bw + 40 + ov, cov, 16), '#7a2f3a', 9); fs(ctx, rr(bx - 40, by + bh, bw + 40 + ov, cov, 16), '#7a2f3a', 9);
+  ctx.fillStyle = 'rgba(255,214,170,.22)'; ctx.fill(rr(bx - 20, by - cov + 10, bw, 12, 6)); ctx.fill(rr(bx - 20, by + bh + 10, bw, 12, 6));
+  fs(ctx, rr(bx - 96, by - cov, 112, bh + 2 * cov, 30), '#6a2630', 9);
+  ctx.strokeStyle = 'rgba(255,214,170,.35)'; ctx.lineWidth = 7; for (const f of [0.18, 0.5, 0.82]) { ctx.beginPath(); ctx.moveTo(bx - 90, by - cov + (bh + 2 * cov) * f); ctx.lineTo(bx + 10, by - cov + (bh + 2 * cov) * f); ctx.stroke(); }
+  // the bookmark ribbon hangs out of the bottom
+  fs(ctx, poly([[bx + bw * 0.74, by + bh + cov - 6], [bx + bw * 0.74 + 34, by + bh + cov - 6], [bx + bw * 0.74 + 34, by + bh + cov + 96], [bx + bw * 0.74 + 17, by + bh + cov + 70], [bx + bw * 0.74, by + bh + cov + 96]]), '#c4643a', 5);
+  // LEO pressed through every leaf in thick gold (the ONLY gold of the episode); revealed left to right with a spark at the tip
+  const q = clamp((t - t0) / dur), gx0 = bx + bw * 0.12, gw = bw * 0.74, fsz = bh * 0.9, xr = lerp(gx0 - 10, gx0 + gw + 10, easeOut(q));
   if (q > 0) {
-    if (glw > 0) { const g = ctx.createLinearGradient(x - 70, 0, x + 70, 0); g.addColorStop(0, 'rgba(255,201,74,0)'); g.addColorStop(0.5, `rgba(255,201,74,${0.5 * glw})`); g.addColorStop(1, 'rgba(255,201,74,0)'); ctx.fillStyle = g; ctx.fillRect(x - 70, yTop, 140, yy - yTop); }
-    ctx.lineCap = 'round'; ctx.strokeStyle = '#8a5a1a'; ctx.lineWidth = 17; ctx.beginPath(); ctx.moveTo(x, yTop); ctx.lineTo(x, yy); ctx.stroke();
-    ctx.strokeStyle = '#ffc94a'; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(x, yTop); ctx.lineTo(x, yy); ctx.stroke();
-    ctx.strokeStyle = '#fff1b0'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x - 2, yTop); ctx.lineTo(x - 2, yy); ctx.stroke();
-    if (q < 1) { ctx.fillStyle = '#fffbe0'; ctx.fill(el(x, yy, 22, 22)); glow(ctx, x, yy, 120, 0.8, '255,226,130'); }
-    else { const pu = 1 + 0.12 * Math.sin((t - t0 - dur) * 3); glow(ctx, x, 0, 260 * pu, 0.34 * glw, '255,214,110'); }
+    ctx.save(); ctx.beginPath(); ctx.rect(gx0 - 20, by, xr - gx0 + 20, bh); ctx.clip(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `${fsz}px GraceCaption`; const cxm = gx0 + gw / 2, cym = by + bh * 0.52;
+    ctx.lineJoin = 'round'; ctx.lineWidth = 34; ctx.strokeStyle = '#6d4310'; ctx.strokeText('LEO', cxm, cym);
+    if (glw > 0) { ctx.shadowColor = 'rgba(255,214,110,.95)'; ctx.shadowBlur = 40 * glw; }
+    ctx.fillStyle = '#ffc94a'; ctx.lineWidth = 8; ctx.strokeStyle = '#ffc94a'; ctx.strokeText('LEO', cxm, cym); ctx.fillText('LEO', cxm, cym); ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,248,200,.8)'; ctx.fillText('LEO', cxm - 5, cym - 6); ctx.restore();
+    if (q < 1) { ctx.fillStyle = '#fffbe0'; ctx.fill(el(xr, by + bh * 0.5, 20, 60)); glow(ctx, xr, by + bh * 0.5, 160, 0.8, '255,226,130'); }
+    else { const pu = 1 + 0.1 * Math.sin((t - t0 - dur) * 3); glow(ctx, bx + bw / 2, by + bh / 2, 420 * pu, 0.26 * glw, '255,214,110'); }
   }
   ctx.restore();
 }
@@ -238,8 +246,8 @@ function nightsG(ctx, {A = null, t = 0, v = 0, lastT = -9, miss = 0, missT = -9,
   ctx.fillStyle = '#ffae5c'; ctx.shadowColor = '#ffae5c'; ctx.shadowBlur = 14; ctx.fillText(txt, 0, h * 0.1); ctx.shadowBlur = 0;
   ctx.restore();
   if (miss > 0 && t >= missT) {
-    const k = easeOutBack(clamp((t - missT) / 0.3)), wob = Math.sin((t - missT) * 14) * 0.03 * Math.max(0, 1 - (t - missT) * 2);
-    ctx.save(); ctx.globalAlpha = A._alpha ?? 1; ctx.translate(cx + w * 0.28, cy + h * 0.62); ctx.rotate(0.07 + wob); ctx.scale(k, k); ctx.lineJoin = 'round';
+    const th0 = h * 0.25, k = easeOutBack(clamp((t - missT) / 0.3)), wob = Math.sin((t - missT) * 14) * 0.03 * Math.max(0, 1 - (t - missT) * 2);
+    ctx.save(); ctx.globalAlpha = A._alpha ?? 1; ctx.translate(cx - w * 0.3, cy - h * 0.62 - th0); ctx.rotate(-0.05 + wob); ctx.scale(k, k); ctx.lineJoin = 'round';
     const tw = w * 0.74, th = h * 0.5, tg = rr(-tw / 2, -th / 2, tw, th, th * 0.22); ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.save(); ctx.translate(0, 6); ctx.fill(tg); ctx.restore();
     ctx.fillStyle = '#d9473a'; ctx.fill(tg); ctx.lineWidth = 7; ctx.strokeStyle = INK; ctx.stroke(tg);
     ctx.fillStyle = '#fff4dc'; ctx.font = `${th * 0.7}px GraceCaption`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 6; ctx.strokeStyle = INK; const mt = 'MISSED ' + miss; ctx.strokeText(mt, 0, 3); ctx.fillText(mt, 0, 3);
@@ -322,16 +330,15 @@ Object.assign(SETS, {
     };
   },
   // the lane at night: the village houses with lit windows and a lamp; snow = white on the ground and drifts at the walls
-  gbStreet({snow = false, lift = 0} = {}) {
+  gbStreet({snow = false} = {}) {
     return ctx => {
       SETS.gLane({time: 'night', lit: true, lamps: true})(ctx);
-      if (lift) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(150,112,86,${lift})`; ctx.fillRect(0, 0, 1080, 1920); ctx.restore(); }
+      for (const [x, y, r, al] of [[150, 1180, 520, 0.5], [540, 1180, 560, 0.5], [930, 1180, 520, 0.5], [330, 760, 380, 0.4], [760, 760, 380, 0.4]]) glow(ctx, x, y, r, al, '255,206,140');
       if (snow) {
         ctx.fillStyle = 'rgba(236,240,255,.62)'; ctx.fillRect(0, 1290, 1080, 630);
         for (let i = 0; i < 16; i++) { const x = hashN(i) * 1100, y = 1330 + hashN(i + 7) * 560; ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fill(el(x, y, 90 + hashN(i + 3) * 90, 14 + hashN(i + 5) * 14)); }
         fs(ctx, rr(-20, 1270, 1120, 40, 20), '#f2f4ff', 5);
         for (const [x, y, w0] of [[-30, 650, 270], [210, 590, 250], [470, 610, 260], [730, 600, 300]]) { ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.beginPath(); ctx.moveTo(x, y + 6); ctx.quadraticCurveTo(x + w0 / 2, y - 140, x + w0, y + 6); ctx.quadraticCurveTo(x + w0 / 2, y - 100, x, y + 6); ctx.fill(); }
-        ctx.fillStyle = 'rgba(70,90,150,.12)'; ctx.fillRect(0, 0, 1080, 1920);
       }
     };
   },
