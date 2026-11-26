@@ -33,7 +33,7 @@ export function motherV(t) {
 const HUE = {gold: ['#ffc94a', '#fff0b8'], ember: ['#ff6a4d', '#ffd9a8'], violet: ['#b384e0', '#f2e2ff'], leaf: ['#9acd5a', '#eaffc0'], white: ['#fff3c4', '#ffffff'], ouro: ['#ffb81f', '#fff7d6']};
 function flameP(x, y, h, w, sway) { const p = new Path2D(); p.moveTo(x, y); p.bezierCurveTo(x - w * 1.1, y - h * 0.12, x - w * 0.72, y - h * 0.6, x + sway, y - h); p.bezierCurveTo(x + w * 0.72, y - h * 0.6, x + w * 1.1, y - h * 0.12, x, y); p.closePath(); return p; }
 // a flame floating above A's head. v = brightness (0.16 = an ember … 1 = bright … 2.4 = a floodlight). fix = [x, y] puts the base anywhere.
-function lightG(ctx, {A = null, t = 0, v = 1, hue = 'gold', gap = 0.6, dx = 0, dy = 0, size = 1, fix = null, rays = 0, seed = 1, calm = 0.6, over = null} = {}) {
+function lightG(ctx, {A = null, t = 0, v = 1, hue = 'gold', gap = 0.6, dx = 0, dy = 0, size = 1, fix = null, rays = 0, seed = 1, calm = 0.6, over = null, cap = false} = {}) {
   if (!fix && (!A || !A._top || (A._alpha ?? 1) <= 0.02)) return;
   const R = A ? A._headR * A._s : 60, al = A ? (A._alpha ?? 1) : 1;
   const cx = (fix ? fix[0] : over === 'head' ? A._head[0] : A._top[0]) + dx, base = (fix ? fix[1] : over === 'head' ? A._head[1] - R * gap : A._top[1] - R * gap) + dy; // over:'head' = straight above the head centre (a lying figure)
@@ -42,13 +42,20 @@ function lightG(ctx, {A = null, t = 0, v = 1, hue = 'gold', gap = 0.6, dx = 0, d
   const fl = 1 + (0.05 * Math.sin(t * 17 + seed) + 0.03 * Math.sin(t * 29 + seed * 2)) * (1 - calm * 0.5), sway = Math.sin(t * 9 + seed * 3) * h * 0.07 * (1 - calm * 0.6);
   const [c0, c1] = HUE[hue] || HUE.gold, hh = h * fl;
   ctx.save(); ctx.globalAlpha = al; ctx.lineJoin = 'round';
-  const gr = h * (1.5 + 1.3 * k) * Math.sqrt(big), gy = base - hh * 0.45, g = ctx.createRadialGradient(cx, gy, h * 0.08, cx, gy, gr);
-  g.addColorStop(0, hexA(c0, 0.62 * k + 0.08)); g.addColorStop(1, hexA(c0, 0)); ctx.fillStyle = g; ctx.fillRect(cx - gr, gy - gr, 2 * gr, 2 * gr);
-  if (rays > 0) { // a floodlight: long rays turning slowly
-    ctx.save(); ctx.translate(cx, gy); ctx.rotate(t * 0.35); ctx.fillStyle = hexA(c1, 0.34 * rays);
-    for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6, L = h * (2.6 + (i % 2) * 1.1) * rays; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a - 0.07) * L, Math.sin(a - 0.07) * L); ctx.lineTo(Math.cos(a + 0.07) * L, Math.sin(a + 0.07) * L); ctx.closePath(); ctx.fill(); }
-    ctx.restore();
-  }
+  const halo = () => {
+    const gr = h * (1.5 + 1.3 * k) * Math.sqrt(big), gy = base - hh * 0.45, g = ctx.createRadialGradient(cx, gy, h * 0.08, cx, gy, gr);
+    g.addColorStop(0, hexA(c0, 0.62 * k + 0.08)); g.addColorStop(1, hexA(c0, 0)); ctx.fillStyle = g; ctx.fillRect(cx - gr, gy - gr, 2 * gr, 2 * gr);
+    if (rays > 0) { // a floodlight: long rays turning slowly
+      ctx.save(); ctx.translate(cx, gy); ctx.rotate(t * 0.35); ctx.fillStyle = hexA(c1, 0.34 * rays);
+      for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6, L = h * (2.6 + (i % 2) * 1.1) * rays; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a - 0.07) * L, Math.sin(a - 0.07) * L); ctx.lineTo(Math.cos(a + 0.07) * L, Math.sin(a + 0.07) * L); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    }
+  };
+  if (cap) { // the halo and the rays fade out below the flame's base, so they never veil the face of whoever carries the light (the opening: Pastor Dale stays opaque)
+    const N = 8, band = R * 0.1;
+    ctx.save(); ctx.beginPath(); ctx.rect(cx - 4000, base - 4000, 8000, 4000); ctx.clip(); halo(); ctx.restore();
+    for (let i = 0; i < N; i++) { ctx.save(); ctx.beginPath(); ctx.rect(cx - 4000, base + i * band, 8000, band + 0.5); ctx.clip(); ctx.globalAlpha = al * Math.max(0, 1 - (i + 0.5) / N) * 0.9; halo(); ctx.restore(); }
+  } else halo();
   const f = flameP(cx, base, hh, w, sway); ctx.fillStyle = c0; ctx.fill(f); ctx.lineWidth = Math.max(3, h * 0.07); ctx.strokeStyle = INK; ctx.stroke(f);
   ctx.fillStyle = c1; ctx.fill(flameP(cx, base - hh * 0.04, hh * 0.6, w * 0.55, sway * 0.5));
   ctx.restore();
@@ -128,7 +135,20 @@ function matchDynG(ctx, {pos = {x: 0, y: 0}, lit = false, t = 0} = {}) {
   if (lit) { const q = clamp((t - 0) , 0, 1); lightG(ctx, {fix: [0, -6], t, v: 0.95, hue: 'ouro', size: 0.9, calm: 0.2, seed: 8}); }
   ctx.restore();
 }
-Object.assign(PROPS, {matchDynG, lightG, shadesG, sillG, chairFrontG, matchG, potG, bowlG, ladleG, fallG, glowPulseG});
+
+// a ring of light spreading from A's flame at t0 (the pulse the eye catches): d seconds, r in flame heights
+function ringG(ctx, {A = null, t = 0, t0 = 0, d = 0.55, size = 1, gap = 0.6, v = 0.62, over = null} = {}) {
+  if (!A || !A._top || t < t0 || t > t0 + d || (A._alpha ?? 1) <= 0.02) return;
+  const R = A._headR * A._s, q = (t - t0) / d, k = Math.min(1, v), h = R * 0.95 * size * (0.3 + 0.7 * k);
+  const cx = over === 'head' ? A._head[0] : A._top[0], base = over === 'head' ? A._head[1] - R * gap : A._top[1] - R * gap, cy = base - h * 0.45;
+  const e = 1 - (1 - q) * (1 - q), rad = h * (0.9 + 2.4 * e), a = 0.85 * (1 - q);
+  ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = '#ffd86a'; ctx.lineWidth = Math.max(4, h * 0.14) * (1 - 0.5 * q);
+  ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.stroke();
+  const g = ctx.createRadialGradient(cx, cy, h * 0.1, cx, cy, rad * 1.25); g.addColorStop(0, 'rgba(255,214,110,' + (0.5 * (1 - q)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,214,110,0)'); ctx.fillStyle = g; ctx.fillRect(cx - rad * 1.3, cy - rad * 1.3, rad * 2.6, rad * 2.6);
+  ctx.restore();
+}
+
+Object.assign(PROPS, {ringG, matchDynG, lightG, shadesG, sillG, chairFrontG, matchG, potG, bowlG, ladleG, fallG, glowPulseG});
 
 // ------------------------------------------------------------------ places
 const WALL_A = WARM.plaster[1], WALL_B = WARM.plaster[3];
