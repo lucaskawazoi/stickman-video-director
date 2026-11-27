@@ -83,7 +83,7 @@ function glint(ctx, x, y, k, s = 1) { // a 4-point star flash, k 0..1
 }
 // the little brass bell by the door. origin = the wall plate; arm to +x, bell hangs at x = 78.
 // dust 0..1: how dusty (1 = grey and cobwebbed, 0 = clean brass). amp: swing amplitude of the ringing from t0. The idle sway is tiny and slow (the replay clue).
-function handBellG(ctx, {t = 0, t0 = -9, amp = 0, dust = 1, halo = 0, web = 1, sway = 1.6} = {}) {
+function handBellG(ctx, {t = 0, t0 = -9, amp = 0, dust = 1, halo = 0, web = 1, sway = 1.6, wind = 0, windT = 1.3, shine = 0} = {}) {
   ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (halo > 0) glow(ctx, 78, 70, 190, 0.5 * halo, '255,214,120');
   const arm = () => { ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(78, -6); ctx.lineTo(78, 6); };
@@ -92,6 +92,7 @@ function handBellG(ctx, {t = 0, t0 = -9, amp = 0, dust = 1, halo = 0, web = 1, s
   fs(ctx, el(-4, -6, 14, 14), '#4a3a40', 5);
   if (web > 0) { ctx.save(); ctx.translate(0, -2); ctx.scale(1.2, 1); cobwebG(ctx, {r: 66, a: web}); ctx.restore(); }
   const q = t - t0; let ang = sway * Math.sin(t * 1.3 + 1.1);
+  if (wind && t >= 0 && t < windT) ang += wind * Math.sin(t * 2 * Math.PI * 1.15) * clamp(1 - t / windT * 0.5) ; // a puff of wind (never a ring: no arcs, no sound): 6-8 degrees in the first second
   if (amp && q >= 0 && q < 3.0) ang = amp * Math.exp(-q * 0.95) * Math.sin(q * 2 * Math.PI * 2.6);
   ctx.save(); ctx.translate(78, 4); ctx.rotate(ang * Math.PI / 180);
   const R = 32, H = 50; bellBody(ctx, R, H, {dull: dust, lw: 5});
@@ -102,6 +103,7 @@ function handBellG(ctx, {t = 0, t0 = -9, amp = 0, dust = 1, halo = 0, web = 1, s
   }
   ctx.restore();
   const gk = clamp(Math.sin(t * 2.7) * 3 - 2.2); if (gk > 0 && !(amp && q > 0)) glint(ctx, 70, 38, gk, 0.9); // the metal winks about every 2.3 s
+  if (shine > 0) { glint(ctx, 70, 38, shine, 1.4); glint(ctx, 112, 74, clamp(shine * 1.2 - 0.2), 0.8); } // forced shine of the brass (opening close-up)
   if (amp && q >= 0 && q < 1.6) glint(ctx, 66 + Math.sin(q * 9) * 4, 36, clamp(1 - q), 1.25);
   ctx.restore();
 }
@@ -208,12 +210,16 @@ function sinkDishesG(ctx, {n = 9, shake = 0, t = 0} = {}) {
   ctx.restore();
 }
 // three letters from her sister on the table (origin = the table top centre). They arrive one by one (ts); the counter plate rides above them.
-function lettersG(ctx, {t = 0, ts = [15.3, 15.62, 16.18], plate = true, plateDx = 70} = {}) {
+function lettersG(ctx, {t = 0, ts = [15.3, 15.62, 16.18], plate = true, plateDx = 70, slideT = 1e9} = {}) {
   ctx.save(); ctx.lineJoin = 'round';
   const slots = [[-120, 0, -0.16], [0, -6, 0.04], [124, 0, 0.18]]; let n = 0;
   slots.forEach(([x, y, a], i) => {
     const q = (t - ts[i]) / 0.3; if (q < 0) return; n++;
     const e = easeOutBack(clamp(q)), dy = (1 - clamp(q)) * -90, dx = (1 - clamp(q)) * 420;
+    if (i === 2 && slideT < 1e8) { // the third letter lands on top of the second and, on «never answered», slips off the pile and tumbles into its place
+      const sk = clamp((t - slideT) / 0.5), se = sk * sk * (3 - 2 * sk), bounce = Math.sin(clamp((sk - 0.55) / 0.45) * Math.PI) * 14;
+      x = lerp(26, x, se) + (sk > 0 && sk < 1 ? 10 * Math.sin(sk * Math.PI) : 0); y = lerp(-46, y, sk * sk) - bounce; a = lerp(0.1, a, se) + 0.5 * Math.sin(sk * Math.PI);
+    }
     ctx.save(); ctx.translate(x + dx, y - 20 + dy); ctx.rotate(a + (1 - clamp(q)) * 0.4); ctx.scale(e, e);
     fs(ctx, rr(-82, -52, 164, 104, 6), '#fffaea', 6); ctx.strokeStyle = 'rgba(150,110,70,.55)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-82, -52); ctx.lineTo(0, 8); ctx.lineTo(82, -52); ctx.stroke();
     fs(ctx, el(0, 8, 13, 13), '#b8402e', 4);
@@ -274,11 +280,17 @@ function calTueG(ctx, {k = 1} = {}) {
   ctx.fillStyle = INK; ctx.font = '150px GraceCaption'; ctx.fillText('TUESDAY', 0, 40); ctx.textAlign = 'left'; ctx.restore();
 }
 // ------------------------------------------------------------------ props: the kitchen door and the light
-// the kitchen's front door seen from inside (origin = the hinge, left of the doorway; leaf 230 wide, 700 high). open 0 closed … 1 wide
+// the kitchen's front door seen from inside: the SAME arched plank door as Marta's door outside (origin = the hinge, left of the doorway; leaf 260 wide, 720 high, round top)
 function kDoorG(ctx, {open = 0, color = '#7a4a2a'} = {}) {
-  const w = 230 * (1 - open * 0.8); if (w < 4) return; ctx.save(); ctx.lineJoin = 'round';
-  const skew = open * 46, p = poly([[0, 0], [w, skew], [w, 700 - skew], [0, 700]]); fs(ctx, p, color, 6);
-  ctx.strokeStyle = dark(color, 0.28); ctx.lineWidth = 5; if (w > 50) { for (const y of [90, 400]) { ctx.beginPath(); ctx.rect(w * 0.14, y + skew * 0.4, w * 0.72, 230 - skew * 0.4); ctx.stroke(); } fs(ctx, el(w * 0.84, 350, 10, 10), '#e8c25a', 4); }
+  const w = 260 * (1 - open * 0.82); if (w < 4) return; ctx.save(); ctx.lineJoin = 'round';
+  const H = 720, skew = open * 52, r = w / 2;
+  const p = new Path2D(); p.moveTo(0, H); p.lineTo(0, r + 40); p.bezierCurveTo(0, 14, r * 0.55, 0, r, skew * 0.5); p.bezierCurveTo(r * 1.45, skew * 0.5, w, 14 + skew, w, r + 40 + skew); p.lineTo(w, H - skew); p.closePath();
+  fs(ctx, p, color, 6);
+  ctx.save(); ctx.clip(p); ctx.strokeStyle = dark(color, 0.3); ctx.lineWidth = 5; for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(w * k / 4, -10); ctx.lineTo(w * k / 4, H); ctx.stroke(); }
+  for (const y of [260, 560]) { ctx.fillStyle = '#4a3a40'; ctx.fillRect(0, y + skew * 0.3, w, 20); }
+  ctx.restore();
+  ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.stroke(p);
+  if (w > 50) fs(ctx, el(w * 0.84, 430, 10, 10), '#e8c25a', 4);
   ctx.restore();
 }
 // the gold light entering the room from the doorway (origin = world). k 0..1. NOT a tint: the room stays as it is, only the light comes in.
@@ -314,7 +326,30 @@ function scatterBirdsG(ctx, {t = 0, t0 = 0, n = 9, perch = true} = {}) {
   }
   ctx.restore();
 }
-Object.assign(PROPS, {scatterBirdsG, towerBellG, soundG, dustPuffG, cobwebG, handBellG, hatG, apronG, tearsG, suitcaseBigG, dressG, ironBoardG, ironG, sinkDishesG, lettersG, shelfG, queueThoughtG, calTueG, kDoorG, kLightFanG, doorLightG});
+
+// a little spider lowering itself on a thread from (0, 0) (origin = where the thread is anchored). Drops from t0 over `drop` s, then dangles and bobs. len = px.
+function spiderG(ctx, {t = 0, t0 = 0, drop = 0.7, len = 150, s = 1} = {}) {
+  const q = t - t0; if (q < 0) return;
+  const k = easeOut(clamp(q / drop)), y = len * k + (q > drop ? Math.sin((q - drop) * 5) * 7 * Math.exp(-(q - drop) * 0.8) : 0);
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(60,45,35,.45)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, y); ctx.stroke();
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.8; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, y); ctx.stroke();
+  ctx.translate(0, y + 14 * s); ctx.rotate(Math.sin(q * 6) * 0.08); ctx.scale(s, s);
+  const kick = q > drop ? Math.sin((q - drop) * 14) * 5 : Math.sin(q * 30) * 6;
+  ctx.strokeStyle = INK; ctx.lineWidth = 5;
+  for (const sg of [-1, 1]) for (let i = 0; i < 4; i++) { const a = (i - 1.5) * 0.5, x1 = sg * (20 + i * 3), y1 = -8 + i * 8 + (i % 2 ? kick : -kick) * 0.6; ctx.beginPath(); ctx.moveTo(sg * 6, (i - 1.5) * 4); ctx.quadraticCurveTo(sg * (16 + i * 2), y1 - 14, x1, y1 + 10); ctx.stroke(); }
+  fs(ctx, el(0, 0, 14, 16), '#3a2a2e', 4); fs(ctx, el(0, -17, 9, 9), '#3a2a2e', 4);
+  ctx.fillStyle = '#fffdf4'; ctx.fill(el(-4, -19, 3.4, 3.8)); ctx.fill(el(4, -19, 3.4, 3.8)); ctx.fillStyle = INK; ctx.fill(el(-3.6, -18.4, 1.6, 1.8)); ctx.fill(el(4.4, -18.4, 1.6, 1.8));
+  ctx.restore();
+}
+// warm gold motes drifting up in the air (world coords, whole frame). k 0..1 = how many/bright
+function motesG(ctx, {t = 0, k = 1, x0 = 0, x1 = 1080, y0 = 400, y1 = 1500, n = 36} = {}) {
+  if (k <= 0) return; ctx.save();
+  for (let i = 0; i < n; i++) { const q = (t * (0.07 + hashN(i * 1.9) * 0.06) + hashN(i * 3.3)) % 1, x = lerp(x0, x1, hashN(i * 2.2 + 1)) + Math.sin(t * 0.9 + i) * 14, y = lerp(y1, y0, q), r = 4 + hashN(i + 7) * 6;
+    ctx.fillStyle = `rgba(255,232,150,${0.9 * k * Math.sin(q * Math.PI)})`; ctx.fill(el(x, y, r, r)); ctx.fillStyle = `rgba(255,244,200,${0.35 * k * Math.sin(q * Math.PI)})`; ctx.fill(el(x, y, r * 2.2, r * 2.2)); }
+  ctx.restore();
+}
+Object.assign(PROPS, {spiderG, motesG, scatterBirdsG, towerBellG, soundG, dustPuffG, cobwebG, handBellG, hatG, apronG, tearsG, suitcaseBigG, dressG, ironBoardG, ironG, sinkDishesG, lettersG, shelfG, queueThoughtG, calTueG, kDoorG, kLightFanG, doorLightG});
 
 // ------------------------------------------------------------------ places
 const STONE = '#ead3a6';
@@ -401,8 +436,9 @@ Object.assign(SETS, {
       fs(ctx, rr(20, 1090, 470, 210, 8), '#b5552f', 6); fs(ctx, rr(8, 1070, 494, 34, 8), WARM.wood, 6); fs(ctx, rr(60, 1100, 260, 40, 14), '#8a8a90', 5);
       fs(ctx, rr(400, 880, 22, 200, 6), '#8c8c92', 4); fs(ctx, rr(360, 870, 90, 20, 8), '#8c8c92', 4);
       fs(ctx, rr(40, 360, 380, 26, 6), WARM.woodD, 4); [['#d9774b', 70], ['#7c8f4a', 150], ['#f4b942', 230], ['#c4643a', 310]].forEach(([c, x], i) => fs(ctx, rr(x, 290 - (i % 2) * 18, 56, 70 + (i % 2) * 18, 10), c, 4));
-      const g = ctx.createLinearGradient(790, 0, 1040, 0); g.addColorStop(0, '#fff3c0'); g.addColorStop(1, '#ffe9a0'); fs(ctx, rr(776, 566, 290, 740, 6), '#e8d49a', 8); ctx.fillStyle = g; ctx.fillRect(790, 580, 260, 720);
-      fs(ctx, rr(1058, 560, 28, 750, 4), '#cdb58a', 5);
+      const arch = (x, w, y0, y1) => { const p = new Path2D(); p.moveTo(x, y1); p.lineTo(x, y0 + w / 2); p.arc(x + w / 2, y0 + w / 2, w / 2, Math.PI, 0); p.lineTo(x + w, y1); p.closePath(); return p; };
+      fs(ctx, arch(768, 296, 558, 1306), '#e8d49a', 8); const g = ctx.createLinearGradient(790, 0, 1040, 0); g.addColorStop(0, '#fff3c0'); g.addColorStop(1, '#ffe9a0'); ctx.fillStyle = g; ctx.fill(arch(790, 260, 580, 1300));
+      fs(ctx, rr(1070, 700, 20, 610, 4), '#cdb58a', 5);
     };
   },
 });
