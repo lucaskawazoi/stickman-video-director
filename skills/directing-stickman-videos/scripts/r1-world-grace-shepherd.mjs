@@ -88,7 +88,7 @@ const armPts = (a, sg) => { const S = [sg * 15, -61.5]; const E = [S[0] + sg * M
 function phoneBody(ctx, {w = 26, h = 46, screen = '#9fd3f0', lw = 1.6} = {}) { fs(ctx, rr(-w / 2, -h / 2, w, h, 4.5), '#2b2b33', lw); ctx.fillStyle = screen; ctx.fill(rr(-w / 2 + 2.2, -h / 2 + 3.4, w - 4.4, h - 7, 2)); }
 
 // the wolf: origin at the feet, ≈ 100 tall.
-function wolfG(ctx, {who = 'A', t = 0, dressed = 1, ring = 1, walk = null, hop = 0, pose = 'rest', aL = null, aR = null, teeth = 0, glowK = 0, look = [0, 0], brow = 0.6, tilt = 0, dir = 1, items = 1, shake = 0, lean = 0, pills = 1, wag = 1, smileScreen = 1, blinkK = 0} = {}) {
+function wolfG(ctx, {who = 'A', t = 0, dressed = 1, ring = 1, walk = null, hop = 0, pose = 'rest', aL = null, aR = null, teeth = 0, glowK = 0, look = [0, 0], brow = 0.6, tilt = 0, dir = 1, items = 1, shake = 0, lean = 0, pills = 1, wag = 1, smileScreen = 1, blinkK = 0, capeK = 1} = {}) {
   const W = WOLF[who], {fur, furD, belly} = W, cost = W.costume;
   const dr = clamp(dressed), sw = dr > 0.01;
   const P = WPOSE[pose] || WPOSE.rest, L = aL || P.L, R = aR || P.R;
@@ -100,7 +100,7 @@ function wolfG(ctx, {who = 'A', t = 0, dressed = 1, ring = 1, walk = null, hop =
   if (lean) { ctx.translate(0, -28); ctx.rotate(rad(lean)); ctx.translate(0, 28); }
   // cape (behind everything)
   if (cost === 'cape' && sw) {
-    const wv = Math.sin(t * 6.5) * 2.4 + 1.2, wv2 = Math.sin(t * 5.1 + 1) * 2.2;
+    const wv = (Math.sin(t * 6.5) * 2.4 + 1.2) * capeK, wv2 = Math.sin(t * 5.1 + 1) * 2.2 * capeK;
     const c = new Path2D(); c.moveTo(-14, -62); c.lineTo(14, -62); c.bezierCurveTo(26, -50, 34 + wv, -30, 38 + wv, -5 + wv2);
     c.quadraticCurveTo(26, 1 - wv2, 15, -3 + wv2); c.quadraticCurveTo(0, 3, -15, -3 - wv2); c.quadraticCurveTo(-26, 1 + wv2, -38 - wv, -5 - wv2); c.bezierCurveTo(-34 - wv, -30, -26, -50, -14, -62); c.closePath();
     ctx.save(); ctx.globalAlpha = dr; fs(ctx, c, CAPE, 1.3); ctx.fillStyle = '#8e1f2b'; ctx.globalAlpha = 0.5 * dr; ctx.fill(el(0, -26, 14, 26)); ctx.restore();
@@ -198,7 +198,7 @@ function staffG(ctx) {
   ctx.restore();
 }
 // a plain baseball cap on A's head (front view: dome + a visor)
-function capG(ctx, {A = null, color = '#3f6a7a', lift = 0} = {}) {
+function capG(ctx, {A = null, color = '#2f78c4', lift = 0} = {}) {
   if (!A || !A._head || (A._alpha ?? 1) <= 0.02) return;
   const R = A._headR * A._s; ctx.save(); ctx.globalAlpha = A._alpha ?? 1; ctx.translate(A._head[0], A._head[1] - R * (0.6 + lift)); ctx.rotate(((A._st?.tilt) || 0) * Math.PI / 180); ctx.lineJoin = 'round';
   const lw = Math.max(3, R * 0.075);
@@ -276,12 +276,12 @@ function gearG(ctx, {kind = 'shirt', face = 1, crack = 0, s = 1} = {}) {
 }
 
 // Ray's phone, big, in front of the camera: the wolf's smiling face on the screen (its eyes wander), a message that appears, the glow of the screen. origin = centre.
-function phoneG(ctx, {t = 0, buzz = 0, k = 1, msg = '', msgK = 0, off = 0, s = 1} = {}) {
+function phoneG(ctx, {t = 0, buzz = 0, k = 1, msg = '', msgK = 0, off = 0, s = 1, faceZ = 5.2, faceY = -26} = {}) {
   ctx.save(); ctx.scale(s, s); ctx.lineJoin = 'round'; const bz = buzz ? Math.sin(t * 90) * 4 * buzz : 0; ctx.translate(bz, 0);
   const W = 250, H = 460; glow(ctx, 0, 0, 520, 0.5 * k * (1 - off), '210,246,255');
   fs(ctx, rr(-W / 2, -H / 2, W, H, 38), '#2b2b33', 9);
   const sc = new Path2D(); sc.roundRect(-W / 2 + 14, -H / 2 + 26, W - 28, H - 52, 20); ctx.fillStyle = off ? '#1c1c22' : '#e9f4d9'; ctx.fill(sc);
-  if (!off) { ctx.save(); ctx.clip(sc); ctx.translate(0, -26); ctx.scale(5.2, 5.2); wolfFace(ctx, WOLF.C, {teeth: 0, glowK: 0.0, look: [Math.sin(t * 0.9) * 0.5, 0.2], brow: 0.8, lw: 1.1}); ctx.restore(); }
+  if (!off) { ctx.save(); ctx.clip(sc); ctx.translate(0, faceY); ctx.scale(faceZ, faceZ); wolfFace(ctx, WOLF.C, {teeth: 0, glowK: 0.0, look: [Math.sin(t * 0.9) * 0.5, 0.2], brow: 0.8, lw: 1.1}); ctx.restore(); }
   if (msgK > 0 && msg) { ctx.save(); ctx.globalAlpha = clamp(msgK); ctx.translate(0, 150 - 14 * (1 - clamp(msgK))); ctx.font = '50px GraceCaption'; const tw = ctx.measureText(msg).width + 40; const b = new Path2D(); b.roundRect(-tw / 2, -34, tw, 68, 26); ctx.fillStyle = '#2f7f86'; ctx.fill(b); ctx.lineWidth = 6; ctx.strokeStyle = INK; ctx.stroke(b); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(msg, 0, 3); ctx.restore(); }
   ctx.restore();
 }
@@ -409,7 +409,19 @@ function contractG(ctx, {t = 0, k = 1, tap = 0} = {}) {
 }
 // a soft round light (the phone's glow on a face, a lantern's pool). args {r, a, c}
 function bloomG(ctx, {r = 300, a = 0.4, c = '210,246,255'} = {}) { glow(ctx, 0, 0, r, a, c); }
-Object.assign(PROPS, {contractG, bloomG});
+// the shepherd's two empty pockets turned inside out (white linings hanging from his hips). k 0..1
+function pocketsG(ctx, {A = null, k = 1, t = 0} = {}) {
+  if (!A || !A._arms || !A._rt || (A._alpha ?? 1) <= 0.02 || k <= 0.01) return;
+  const r = A._arms, s = A._s, fl = A.flip ? -1 : 1, P = p => A._rt(fl * p[0] * s, (p[1] + r.drop + r.bob) * s);
+  ctx.save(); ctx.globalAlpha = (A._alpha ?? 1) * clamp(k * 1.5); ctx.lineJoin = 'round';
+  for (const sg of [-1, 1]) {
+    const o = P([sg * 11, -57]), sw = Math.sin(t * 7 + sg) * 1.6 * s, L = 17 * s * clamp(k), W = 8.5 * s;
+    const pp = new Path2D(); pp.moveTo(o[0] - W * 0.6, o[1]); pp.lineTo(o[0] + W * 0.6, o[1]); pp.quadraticCurveTo(o[0] + W * 1.1 + sw, o[1] + L * 0.6, o[0] + W * 0.55 + sw, o[1] + L); pp.quadraticCurveTo(o[0] + sw, o[1] + L * 1.12, o[0] - W * 0.55 + sw, o[1] + L); pp.quadraticCurveTo(o[0] - W * 1.1 + sw, o[1] + L * 0.6, o[0] - W * 0.6, o[1]); pp.closePath();
+    fs(ctx, pp, '#f6efdc', Math.max(2, 0.8 * s));
+  }
+  ctx.restore();
+}
+Object.assign(PROPS, {contractG, bloomG, pocketsG});
 
 // a big wolf paw that swipes across the frame (for the claw that tears the sleeve). origin = where the swipe starts; k 0..1 along the swipe; the arm trails behind it.
 function pawG(ctx, {who = 'B', k = 0, len = 260, drop = 90, s = 1} = {}) {
