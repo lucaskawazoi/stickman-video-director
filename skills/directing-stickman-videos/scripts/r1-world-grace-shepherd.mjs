@@ -224,11 +224,10 @@ function tornG(ctx, {A = null, t = 0, k = 1, jacket = '#7a8a4a', skin = '#e3b38e
     const sw = Math.sin(t * 3.1) * 2.2 * s, fp = new Path2D(); fp.moveTo(Q[0] - ux * 3.6 * s, Q[1] - uy * 3.6 * s); fp.quadraticCurveTo(Q[0] - ux * 7 * s + sw, Q[1] + 6 * s, Q[0] - ux * 5 * s + sw * 1.4, Q[1] + 13 * s);
     fp.lineTo(Q[0] - ux * 1.2 * s + sw * 1.2, Q[1] + 10 * s); fp.lineTo(Q[0] + ux * 1.4 * s + sw, Q[1] + 14 * s); fp.quadraticCurveTo(Q[0] + ux * 3 * s + sw * 0.6, Q[1] + 5 * s, Q[0] + ux * 3.8 * s, Q[1] + uy * 3.8 * s); fp.closePath(); fs(ctx, fp, jacket, Math.max(2, 0.7 * s));
   }
-  if (scratch > 0) { // three red scratches across the forearm + a drop
+  if (scratch > 0) { // three red scratches across the forearm; no drop (the crítico read it as blood, 28/11)
     const a = lerpP(Ew, Ww, 0.3), b = lerpP(Ew, Ww, 0.78); ctx.globalAlpha *= clamp(scratch);
     for (let i = -1; i <= 1; i++) { const o = i * 2.0 * s, p0 = [a[0] + ux * o - ux * 2.4 * s, a[1] + uy * o - uy * 2.4 * s], p1 = [b[0] + ux * o + ux * 2.4 * s, b[1] + uy * o + uy * 2.4 * s];
       ctx.strokeStyle = '#a3262b'; ctx.lineWidth = Math.max(2, 1.1 * s); ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.stroke(); ctx.strokeStyle = '#e8574f'; ctx.lineWidth = Math.max(1.2, 0.5 * s); ctx.stroke(); }
-    ctx.fillStyle = '#c0353a'; ctx.beginPath(); const dp = lerpP(a, b, 0.5); ctx.ellipse(dp[0] + ux * 4.4 * s, dp[1] + 4.6 * s, 0.9 * s, 1.5 * s, 0, 0, 7); ctx.fill();
   }
   ctx.restore();
 }
